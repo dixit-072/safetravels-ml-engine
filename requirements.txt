@@ -10,3 +10,5 @@ holidays
 scikit-learn
 xgboost
 pytest
+gspread
+google-auth
