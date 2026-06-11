@@ -1,0 +1,11 @@
+location_id,location,destination_type,elevation,transport_complexity_score,elevation_penalty,road_accessibility_score,emergency_access_score,travel_cost_index,budget_stress_index
+LOC001,Manali,Mountain Hill Station,1864.0,73.73,18.64,60,55,70,66
+LOC002,Shimla,Mountain Hill Station,2195.0,74.39,21.95,60,55,70,67
+LOC003,Mussoorie,Mountain Hill Station,2006.0,74.01,20.06,60,55,70,66
+LOC004,Nainital,Mountain Hill Station,1938.0,73.88,19.38,60,55,70,66
+LOC005,Leh,High Altitude Desert,3414.0,96.83,34.14,40,35,95,89
+LOC006,Darjeeling,Mountain Hill Station,2003.0,74.01,20.03,60,55,70,66
+LOC007,Goa,Coastal Plain,98.0,20.2,0.98,95,90,40,30
+LOC008,Jaipur,Semi-Arid Plain,431.0,25.86,4.31,90,85,30,26
+LOC009,Munnar,Mountain Hill Station,1461.0,72.92,14.61,60,55,70,65
+LOC010,Ooty,Mountain Hill Station,2235.0,74.47,22.35,60,55,70,67

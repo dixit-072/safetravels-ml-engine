@@ -1,0 +1,11 @@
+location_id,location,latitude,longitude,elevation,state,destination_type,tourism_popularity_rating,high_altitude_flag,mountain_flag,coastal_flag,nearest_landslide_km,landslide_density_per_1000sqkm
+LOC001,Manali,32.2396,77.1887,1864.0,Himachal Pradesh,Mountain Hill Station,4.8,0,1,0,2.450546088739467,0.25464790894703254
+LOC002,Shimla,31.1048,77.1734,2195.0,Himachal Pradesh,Mountain Hill Station,4.8,0,1,0,2.0130146265862945,0.12732395447351627
+LOC003,Mussoorie,30.4598,78.0644,2006.0,Uttarakhand,Mountain Hill Station,4.8,0,1,0,2.5395896489873904,0.12732395447351627
+LOC004,Nainital,29.3802,79.4636,1938.0,Uttarakhand,Mountain Hill Station,4.4,0,1,0,1.644789774679139,0.12732395447351627
+LOC005,Leh,34.1526,77.5771,3414.0,Ladakh,High Altitude Desert,4.7,1,1,0,1.1383285233955733,0.12732395447351627
+LOC006,Darjeeling,27.041,88.2627,2003.0,West Bengal,Mountain Hill Station,4.8,0,1,0,1.2951022651868598,0.25464790894703254
+LOC007,Goa,15.2993,74.124,98.0,Goa,Coastal Plain,4.9,0,0,1,1.9844921384705443,0.12732395447351627
+LOC008,Jaipur,26.9124,75.7873,431.0,Rajasthan,Semi-Arid Plain,4.8,0,0,0,451.7452717301753,0.0
+LOC009,Munnar,10.0889,77.0595,1461.0,Kerala,Mountain Hill Station,4.2,0,1,0,0.4401430376078353,0.12732395447351627
+LOC010,Ooty,11.4102,76.695,2235.0,Tamil Nadu,Mountain Hill Station,4.5,0,1,0,1.8573866648520012,0.12732395447351627

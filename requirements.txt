@@ -1,0 +1,12 @@
+pandas
+numpy
+mysql-connector-python
+fastapi
+joblib
+streamlit
+uvicorn
+python-dotenv
+holidays
+scikit-learn
+xgboost
+pytest
