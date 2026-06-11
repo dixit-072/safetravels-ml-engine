@@ -8,10 +8,6 @@ __pycache__/
 *.pyd
 .pytest_cache/
 
-# 💾 Compiled Model Binary Artifact Large Files
-models/*.pkl
-models/*.joblib
-
 # 📊 Local Scratch Data Collections & Logs
 data/predict_api_responses_backup.csv
 data/tourist_locations_weather_raw.csv
