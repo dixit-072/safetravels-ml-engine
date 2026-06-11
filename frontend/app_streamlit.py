@@ -18,9 +18,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 # 1. UI Configuration and Session Caching
 st.set_page_config(page_title="SafeTravels | Smart Route Planner", page_icon="🚗", layout="wide")
 
-# Securely extract microservice network endpoints from environment vectors
-FASTAPI_URL = os.getenv("FASTAPI_PREDICT_URL", "http://127.0.0.1:8000/predict")
-HEALTH_URL = os.getenv("FASTAPI_HEALTH_URL", "http://127.0.0.1:8000/health")
+# =====================================================================
+# SYSTEM NETWORK ENDPOINT ROUTING VECTOR OVERRIDES
+# =====================================================================
+# Comment out or replace the os.getenv calls with your absolute live links:
+FASTAPI_URL = "https://safetravels-ml-engine.onrender.com/predict"
+HEALTH_URL = "https://safetravels-ml-engine.onrender.com/health"
 MAX_HISTORY = 20
 
 # ============================================
