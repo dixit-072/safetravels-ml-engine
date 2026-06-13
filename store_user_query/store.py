@@ -7,6 +7,7 @@ from typing import Dict, Any
 from dotenv import load_dotenv
 import gspread
 from google.oauth2.service_account import Credentials
+import json
 
 # Ingest configuration mappings from your hidden local register file
 load_dotenv()
