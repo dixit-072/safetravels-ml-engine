@@ -54,11 +54,21 @@ def get_gspread_client():
             logging.error(f"Local JSON authentication fault: {e}")
     else:
         try:
-            # 🟢 DIRECT DICTIONARY INGEST: Pull the native TOML sub-keys safely from st.secrets
-            secrets_account_block = st.secrets.get("gcp_service_account")
-            if secrets_account_block:
-                # Convert the Immutable Secrets dictionary type into a writable Python dictionary
-                creds_dict = dict(secrets_account_block)
+            # 🟢 ULTIMATE FLAT MAPPING: Read all standalone GCP keys straight from st.secrets
+            if st.secrets.get("GCP_PRIVATE_KEY"):
+                creds_dict = {
+                    "type": st.secrets.get("GCP_TYPE"),
+                    "project_id": st.secrets.get("GCP_PROJECT_ID"),
+                    "private_key_id": st.secrets.get("GCP_PRIVATE_KEY_ID"),
+                    "private_key": st.secrets.get("GCP_PRIVATE_KEY"),
+                    "client_email": st.secrets.get("GCP_CLIENT_EMAIL"),
+                    "client_id": st.secrets.get("GCP_CLIENT_ID"),
+                    "auth_uri": st.secrets.get("GCP_AUTH_URI"),
+                    "token_uri": st.secrets.get("GCP_TOKEN_URI"),
+                    "auth_provider_x509_cert_url": st.secrets.get("GCP_AUTH_PROVIDER_X509_CERT_URL"),
+                    "client_x509_cert_url": st.secrets.get("GCP_CLIENT_X509_CERT_URL"),
+                    "universe_domain": st.secrets.get("GCP_UNIVERSE_DOMAIN")
+                }
                 creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
                 return gspread.authorize(creds)
         except Exception as e:
