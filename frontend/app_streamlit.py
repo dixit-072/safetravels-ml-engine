@@ -84,24 +84,59 @@ def fetch_cloud_prediction_logs():
 
 def write_cloud_prediction_log(row_data: list):
     """Safely pushes an array row down into your designated Google Sheet columns layout."""
+    # We bring your class connection architecture directly into the frontend utility loop
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    
+    # 📡 1. Authorize connection using your passive credentials manager
     client = get_gspread_client()
     if not client:
-        logging.warning("Database sync skipped: GSpread client completely unavailable.")
+        logging.warning("⚠ Database connection skipped: Credentials unavailable.")
         return False
+        
     try:
         sheet = client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
         
-        # 🟢 THE FIX: Convert every element in the list into a pure string!
-        # This safely stringifies datetime objects, dicts, and floats so Google API accepts it perfectly.
-        string_clean_payload = [str(cell) if cell is not None else "" for cell in row_data]
-        
-        sheet.append_row(string_clean_payload)
-        logging.info("✓ Log record written successfully to Google Sheet row matrix.")
-        return True
-    except Exception as e:
-        logging.error(f"🛑 Failed to append row log to Google Sheets: {e}")
-        return False
+        # 📊 2. Map row variables exactly matching your store.py schema constraints [A through M]
+        # We parse the incoming row list array elements safely
+        timestamp = row_data[0]
+        location_query = row_data[1]
+        resolved_name = row_data[2] or "N/A"
+        latitude = float(row_data[3] or 0.0)
+        longitude = float(row_data[4] or 0.0)
+        predicted_hazard_score = float(row_data[5] or 0.0)
+        risk_category = row_data[6] or "Unassigned"
+        destination_type = row_data[7] or "General"
+        destination_description = row_data[8] or "N/A"
+        model_version = row_data[9] or "2.1.0"
+        forecast_date = row_data[10]
+        telemetry_dict = row_data[11]
 
+        # 🟢 THE FIX: Reassemble your exact row matrix array from store.py
+        # We explicitly wrap json.dumps() and string conversions to prevent API rejections
+        production_row_to_append = [
+            str(timestamp),
+            str(location_query),
+            str(resolved_name),
+            latitude,
+            longitude,
+            predicted_hazard_score,
+            str(risk_category),
+            str(destination_type),
+            str(destination_description),
+            str(model_version),
+            str(forecast_date),
+            json.dumps(telemetry_dict), # 👈 Matches your exact json formatting rule
+            "SUCCESS"                   # 👈 Column M status flag
+        ]
+        
+        # ☁️ Stream the synchronized dataset down to your spreadsheet cells grid
+        sheet.append_row(production_row_to_append)
+        logging.info("✓ Prediction successfully logged into Cloud Spreadsheet Row Matrix!")
+        return True
+        
+    except Exception as e:
+        logging.error(f"🛑 Google Cloud append transaction failed: {e}")
+        return False
 
 @st.cache_data
 def load_cached_destinations():
