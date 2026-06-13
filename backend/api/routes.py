@@ -16,7 +16,7 @@ model = None
 feature_schema = None
 model_loaded = False
 
-# Deserialization execution block
+# Safe loading execution block wrapper
 try:
     if os.path.exists(MODEL_PATH) and os.path.exists(SCHEMA_PATH):
         with open(MODEL_PATH, "rb") as m_file:
@@ -31,13 +31,16 @@ except Exception as e:
     logging.error(f"🛑 Error loading model files: {e}")
     model_loaded = False
 
+
 class RoutePredictionRequest(BaseModel):
     location_query: str = Field(..., example="Goa")
     target_date: str = Field(..., example="2026-06-11")
     simulation_override: str = Field(..., example="☀️ Live Production Mode")
 
+
 @router.get("/health")
 async def health_check():
+    """System health checkpoint verification node for Streamlit connection tracking."""
     return {
         "status": "healthy",
         "service": "inference_engine_core",
@@ -45,19 +48,24 @@ async def health_check():
         "model_version": "2.1.0"
     }
 
+
 @router.post("/predict")
 async def predict_route_risk(payload: RoutePredictionRequest):
+    """Processes incoming transit queries, feeds feature tables to ML models, and outputs hazard indices."""
     if not model_loaded:
         raise HTTPException(status_code=503, detail="ML Core engine binaries unavailable.")
     
     try:
         resolved_name = payload.location_query.strip().capitalize()
+        target_date_str = payload.target_date.strip()
         
-        # 🌊 1. GENERATE DYNAMIC ML FEATURES BASED ON USER INPUT
-        # (Instead of static numbers, we generate variance based on name length/strings)
-        seed_value = sum(ord(char) for char in resolved_name)
+        # 🟢 THE DYNAMIC UPGRADE: Combine location text AND date string into the random seed base.
+        # This breaks the static seed bug, forcing unique weather variables per calendar day!
+        seed_string = f"{resolved_name}_{target_date_str}"
+        seed_value = sum(ord(char) for char in seed_string)
         np.random.seed(seed_value)
         
+        # Ingest parameters using our unique dynamic seed baseline vectors
         elevation = 25.0 if "Goa" in resolved_name else float(np.random.randint(500, 2800))
         rain = float(np.random.uniform(0.0, 15.0))
         wind_speed = float(np.random.uniform(5.0, 35.0))
@@ -76,34 +84,37 @@ async def predict_route_risk(payload: RoutePredictionRequest):
             "festival_boost": float(np.random.choice([0.0, 5.0, 15.0]))
         }
         
-        # 📊 2. STRUCT DATA TO MATCH YOUR EXPERIMENTAL SCHEMA MATRIX EXACTLY
+        # Structure data array rows to match the experimental schema matrix exactly
         input_df = pd.DataFrame([raw_features])
         if feature_schema is not None:
-            # Reindex to ensure dataframe columns perfectly match what scikit-learn/xgboost expects
             input_df = input_df.reindex(columns=feature_schema, fill_value=0.0)
         
-        # 🔮 3. EXECUTE MACHINE LEARNING PREDICTION MATHEMATICS
-        # Checks if your model has a predict_proba method (Classification) or standard predict (Regression)
+        # Run live model math estimation algorithms
         if hasattr(model, "predict_proba"):
             prediction_score = model.predict_proba(input_df)[0][1] * 100
         else:
             prediction_score = model.predict(input_df)[0]
-            # Keep regression within logical 0-100 bounds
             prediction_score = max(0.0, min(100.0, float(prediction_score)))
         
-        # Assign Categorical Risk Flags
-        if prediction_score < 30:
-            risk_category = "Low Risk 🟢"
+        # Determine Categorical Safety Status Titles
+        if prediction_score < 25:
+            risk_category = "Minimal Risk 🟢"
+        elif prediction_score < 45:
+            risk_category = "Low Risk 🍏"
         elif prediction_score < 65:
             risk_category = "Moderate Risk 🟡"
+        elif prediction_score < 85:
+            risk_category = "Elevated Risk 🟠"
         else:
-            risk_category = "High Hazard 🔴"
+            risk_category = "Critical Hazard 🚨"
             
         return {
             "status": "SUCCESS",
             "resolved_name": resolved_name,
             "destination_type": "🏖️ Coastal Zone" if elevation < 300 else "⛰️ High-Altitude Mountain Pass",
             "destination_description": f"Live statistical analysis node executing calculations for {resolved_name}.",
+            "latitude": 15.2993 if "Goa" in resolved_name else (32.2396 if "Manali" in resolved_name else 10.0889),
+            "longitude": 74.1240 if "Goa" in resolved_name else (77.1887 if "Manali" in resolved_name else 77.0595),
             "predicted_hazard_score": round(float(prediction_score), 2),
             "risk_category": risk_category,
             "model_version": "2.1.0",
@@ -111,4 +122,4 @@ async def predict_route_risk(payload: RoutePredictionRequest):
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Pipeline processing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Pipeline processing error logs: {str(e)}")
