@@ -44,6 +44,7 @@ st.sidebar.markdown("---")
 
 def get_gspread_client():
     """Hybrid credential parser supporting local JSON keys or Streamlit Cloud Secrets Manager."""
+    import json
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     
     if os.path.exists(GOOGLE_CREDS_FILE):
@@ -54,8 +55,10 @@ def get_gspread_client():
             logging.error(f"Local JSON authentication fault: {e}")
     else:
         try:
-            creds_dict = dict(st.secrets.get("gcp_service_account", {}))
-            if creds_dict:
+            # 🟢 FAIL-SAFE UPGRADE: Ingest the raw JSON text string block directly from Secrets
+            raw_json_string = st.secrets.get("GCP_CREDS_JSON_RAW", "")
+            if raw_json_string:
+                creds_dict = json.loads(raw_json_string)
                 creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
                 return gspread.authorize(creds)
         except Exception as e:
