@@ -82,6 +82,21 @@ def fetch_cloud_prediction_logs():
         return None
 
 
+def write_cloud_prediction_log(row_data: list):
+    """Safely pushes an array row down into your designated Google Sheet columns layout."""
+    client = get_gspread_client()
+    if not client:
+        return False
+    try:
+        sheet = client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
+        sheet.append_row(row_data)
+        logging.info("✓ Log record written successfully to Google Sheet row matrix.")
+        return True
+    except Exception as e:
+        logging.error(f"🛑 Failed to append row log to Google Sheets: {e}")
+        return False
+
+
 @st.cache_data
 def load_cached_destinations():
     default_cities = ["Manali", "Shimla", "Mussoorie", "Nainital", "Leh", "Darjeeling", "Goa", "Jaipur", "Munnar", "Ooty"]
@@ -200,6 +215,8 @@ if app_view == "🔮 Route Risk Checker":
                         res_data["processed_features"].update({"rain": 85.4, "wind_speed": 48.2, "temp_max": 4.1})
 
                 telemetry = res_data.get("processed_features", {})
+                score = res_data.get("predicted_hazard_score")
+                tier = res_data.get("risk_category")
                 
                 with col_inputs:
                     st.write("")
@@ -209,7 +226,6 @@ if app_view == "🔮 Route Risk Checker":
                     st.caption(res_data.get("destination_description"))
                     st.write("")
                     
-                    # 🚀 Spread metrics across 4 columns to maximize horizontal space
                     m_col1, m_col2, m_col3, m_col4 = st.columns(4)
                     with m_col1:
                         st.metric(label="⛰️ Altitude", value=f"{float(telemetry.get('elevation', 0)):.0f}m")
@@ -235,9 +251,6 @@ if app_view == "🔮 Route Risk Checker":
                         st.warning("⚠️ Map coordinates parsing error. Fallback loaded.")
                         fallback_df = pd.DataFrame({"latitude": [32.2396], "longitude": [77.1887]})
                         st.map(fallback_df, zoom=7)
-                    
-                    score = res_data.get("predicted_hazard_score")
-                    tier = res_data.get("risk_category")
                     
                     if "Minimal" in tier: st.success("### ✅ Minimal Risk (Excellent Route Conditions)")
                     elif "Low" in tier: st.success("### 🍏 Low Risk (Stable Route Conditions)")
@@ -270,8 +283,30 @@ if app_view == "🔮 Route Risk Checker":
                     st.bar_chart(share_df.set_index("Risk Driver Group"), horizontal=True)
                     st.success("✨ Weather data is actively synced with current satellite updates." if not is_test_mode else "🧪 Simulation Mode: Critical structural stress weights applied.")
 
+                    # Execute live cloud log updates matching spreadsheet schema order exactly
+                    current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    target_date_str = travel_date.strftime("%Y-%m-%d")
+                    
+                    # Columns payload string list mapping [A through L columns row matrix layout]
+                    sheet_row_payload = [
+                        current_timestamp,                          # A: timestamp
+                        final_query,                                # B: location_query
+                        res_data.get("resolved_name"),              # C: resolved_name
+                        float(lat_val),                             # D: latitude
+                        float(lon_val),                             # E: longitude
+                        round(float(score), 2),                     # F: predicted_hazard_score
+                        tier,                                       # G: risk_category
+                        res_data.get("destination_type"),           # H: destination_type
+                        res_data.get("destination_description"),    # I: destination_description
+                        res_data.get("model_version"),              # J: model_version
+                        target_date_str,                            # K: forecast_date
+                        str(telemetry)                              # L: processed_features
+                    ]
+                    write_cloud_prediction_log(sheet_row_payload)
+
                     history_log = {
-                        "Time Checked": datetime.now().strftime("%I:%M %p"),
+                        "Time Checked": datetime.now().strftime("%I:%M:%S %p"),
+                        "📅 Planned Travel Date": target_date_str,
                         "Destination Location": "Manali (STRESS_TEST)" if is_test_mode else res_data.get("resolved_name"),
                         "Risk Score Index": float(score),
                         "Safety Status Category": tier
@@ -526,9 +561,9 @@ elif app_view == "📊 Travel Data Analytics":
 
     st.write("---")
 
-    if os.path.exists(attribution_path):
+    if os.path.exists(attribution_backup_path):
         st.markdown("### 📊 Master Historical Sample Records")
-        attr_df = pd.read_csv(attribution_path)
+        attr_df = pd.read_csv(attribution_backup_path)
         
         selected_city = st.selectbox("Isolate Long-Term Historical Table Data By City:", options=["All Core Cities"] + attr_df["location"].unique().tolist())
         
