@@ -57,13 +57,20 @@ def get_gspread_client():
             logging.error(f"Local JSON Auth Error: {e}")
             
     # 2. If not local, we are live on Streamlit Cloud
+    # 2. If not local, we are live on Streamlit Cloud
     else:
         try:
             # DIRECT FLAT TOML INGESTION: Collect variables straight from st.secrets
             private_key = st.secrets.get("GCP_PRIVATE_KEY")
             if private_key:
-                # 🟢 THE CRYPTO FIX: Clean raw line breaks and normalize formatting configurations
+                # 🟢 THE REAL CRYPTO FIX: Clear physical returns AND text-escaped '\n' signs together
                 cleaned_private_key = private_key.replace("\\n", "\n")
+                if "-----BEGIN PRIVATE KEY-----" not in cleaned_private_key:
+                    # If it lacks headers due to a block truncation, reinforce them
+                    cleaned_private_key = f"-----BEGIN PRIVATE KEY-----\n{cleaned_private_key.strip()}\n-----END PRIVATE KEY-----"
+                
+                # Double check that literal formatting handles real newline breaks flawlessly
+                cleaned_private_key = cleaned_private_key.replace("\n\n", "\n")
                 
                 creds_dict = {
                     "type": st.secrets.get("GCP_TYPE"),
