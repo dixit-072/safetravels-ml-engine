@@ -9,6 +9,7 @@ import json
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from dotenv import load_dotenv
+import base64
 
 # Ingest configuration mappings from the hidden environment file
 load_dotenv()
