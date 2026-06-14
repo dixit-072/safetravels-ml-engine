@@ -1,9 +1,10 @@
+streamlit>=1.28.0
+st-gsheets-connection
 pandas
 numpy
 mysql-connector-python
 fastapi
 joblib
-streamlit
 uvicorn
 python-dotenv
 holidays

@@ -4,12 +4,11 @@ import pandas as pd
 import logging
 import os
 import numpy as np
-import gspread
 import json
-from google.oauth2.service_account import Credentials
+import base64
 from datetime import datetime
 from dotenv import load_dotenv
-import base64
+from streamlit_gsheets import GSheetsConnection
 
 # Ingest configuration mappings from the hidden environment file
 load_dotenv()
@@ -27,15 +26,6 @@ FASTAPI_URL = "https://safetravels-ml-engine.onrender.com/predict"
 HEALTH_URL = "https://safetravels-ml-engine.onrender.com/health"
 MAX_HISTORY = 20
 
-# ============================================
-# GOOGLE SHEETS CONFIGURATION (CLOUD LAYER)
-# ============================================
-GOOGLE_CREDS_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "google_creds.json")
-
-# Force the app to look directly at your verified Streamlit Secrets panel strings
-SPREADSHEET_NAME = st.secrets.get("SPREADSHEET_NAME", "SafeTravels_Cloud_Logs")
-WORKSHEET_NAME = st.secrets.get("GOOGLE_SHEET_TAB", "prediction_responses")
-
 if "prediction_history" not in st.session_state:
     st.session_state.prediction_history = []
 
@@ -45,100 +35,80 @@ app_view = st.sidebar.radio("Switch Dashboard View:", ["🔮 Route Risk Checker"
 st.sidebar.markdown("---")
 
 
-def get_gspread_client():
-    """Decodes single flat Base64 secrets string seamlessly with a cache-busting fallback."""
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    
-    # 1. Check if running locally
-    if os.path.exists(GOOGLE_CREDS_FILE):
-        try:
-            creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=scopes)
-            return gspread.authorize(creds)
-        except Exception as e:
-            logging.error(f"Local JSON Auth Error: {e}")
-            
-    # 2. Live on Streamlit Cloud - Force-read using a fresh variable mapping
-    else:
-        try:
-            # Check the new V2 variable first to completely bypass Streamlit's cache
-            base64_creds = st.secrets.get("GCP_CREDS_BASE64_V2") or st.secrets.get("GCP_CREDS_BASE64")
-            
-            if base64_creds:
-                # Unscramble the single-line string back into original JSON format
-                decoded_json_bytes = base64.b64decode(base64_creds)
-                creds_dict = json.loads(decoded_json_bytes)
-                
-                creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-                return gspread.authorize(creds)
-            else:
-                logging.error("🔐 Streamlit Secrets Error: Both Base64 key variants returned None!")
-        except Exception as e:
-            logging.error(f"Streamlit Cloud Secrets Auth Error: {e}")
-            
-    return None
+# =====================================================================
+# MODERN GOOGLE SHEETS CONNECTION PIPELINE (VIDEO TUTORIAL METHOD)
+# =====================================================================
+
+def get_sheets_connection():
+    """Initializes the modern Streamlit GSheets native connection abstraction."""
+    try:
+        return st.connection("gsheets", type=GSheetsConnection)
+    except Exception as e:
+        logging.error(f"🛑 Failed to initialize native GSheets connection: {e}")
+        return None
+
 
 def fetch_cloud_prediction_logs():
-    """Fetches transactional logs from the cloud sheet to build live UI dashboard charts."""
-    client = get_gspread_client()
-    if not client:
-        logging.warning("Database connection skipped: Credentials completely unavailable.")
+    """Fetches records using the native read() engine with a short 5-second TTL cache fallback."""
+    conn = get_sheets_connection()
+    if not conn:
+        logging.warning("Database connection skipped: Connection layout completely unavailable.")
         return None
-        
     try:
-        sheet = client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
-        records = sheet.get_all_records()
-        if not records:
-            return pd.DataFrame()
-            
-        return pd.DataFrame(records)
+        df = conn.read(
+            spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"],
+            worksheet=st.secrets["connections"]["gsheets"]["worksheet"],
+            ttl="5s"  # Short cache time-to-live matching the video's custom tuning
+        )
+        if df is not None and not df.empty:
+            df = df.dropna(how="all")
+        return df
     except Exception as e:
-        logging.warning(f"Database connection skipped: Google Cloud Sync Failed: {e}")
+        logging.warning(f"Database connection skipped: Native read operation failed: {e}")
         return None
 
 
 def write_cloud_prediction_log(row_data: list):
-    """Safely pushes an array row down into your designated Google Sheet columns layout."""
-    client = get_gspread_client()
-    if not client:
+    """Fetches the active table, appends the fresh row payload, and pushes the updated frame live."""
+    conn = get_sheets_connection()
+    if not conn:
         return False
     try:
-        sheet = client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
-        
-        timestamp = row_data[0]
-        location_query = row_data[1]
-        resolved_name = row_data[2]
-        latitude = row_data[3]
-        longitude = row_data[4]
-        predicted_hazard_score = row_data[5]
-        risk_category = row_data[6]
-        destination_type = row_data[7]
-        destination_description = row_data[8]
-        model_version = row_data[9]
-        forecast_date = row_data[10]
-        processed_features_dict = row_data[11]
+        # 1. Pull down the current active spreadsheet data matrix
+        existing_df = fetch_cloud_prediction_logs()
+        if existing_df is None:
+            existing_df = pd.DataFrame()
 
-        # Explicitly match the 13 columns from A to M (including SUCCESS flag)
-        synchronized_payload = [
-            str(timestamp),
-            str(location_query),
-            str(resolved_name),
-            float(latitude or 0.0),
-            float(longitude or 0.0),
-            float(predicted_hazard_score or 0.0),
-            str(risk_category),
-            str(destination_type),
-            str(destination_description),
-            str(model_version),
-            str(forecast_date),
-            json.dumps(processed_features_dict) if isinstance(processed_features_dict, dict) else str(processed_features_dict),
-            "SUCCESS"
-        ]
-        
-        sheet.append_row(synchronized_payload)
-        logging.info("✓ Live log row written successfully to Google Sheet matrix.")
+        # 2. Re-map the raw trip array parameters to match your tabular schema keys perfectly
+        new_row_df = pd.DataFrame([{
+            "timestamp": str(row_data[0]),
+            "location_query": str(row_data[1]),
+            "resolved_name": str(row_data[2]),
+            "latitude": float(row_data[3] or 0.0),
+            "longitude": float(row_data[4] or 0.0),
+            "predicted_hazard_score": float(row_data[5] or 0.0),
+            "risk_category": str(row_data[6]),
+            "destination_type": str(row_data[7]),
+            "destination_description": str(row_data[8]),
+            "model_version": str(row_data[9]),
+            "forecast_date": str(row_data[10]),
+            "processed_features": json.dumps(row_data[11]) if isinstance(row_data[11], dict) else str(row_data[11]),
+            "status": "SUCCESS"
+        }])
+
+        # 3. Concatenate the frames together matching the video's stacking logic
+        updated_df = pd.concat([existing_df, new_row_df], ignore_index=True)
+
+        # 4. Fire the complete frame rewrite operation back down to the target cloud sheet grid
+        conn.update(
+            spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"],
+            worksheet=st.secrets["connections"]["gsheets"]["worksheet"],
+            data=updated_df
+        )
+        logging.info("✓ Live log row written successfully via native GSheets connection matrix.")
         return True
     except Exception as e:
-        logging.error(f"🛑 Failed to append row log to Google Sheets: {e}")
+        logging.error(f"🛑 Native GSheets update operation failed: {e}")
         return False
 
 
@@ -196,7 +166,7 @@ if app_view == "🔮 Route Risk Checker":
             st.sidebar.error("🔴 System Offline")
         st.sidebar.info("✨ Live Mode Active: Fetching real-time weather and satellite tracking inputs for your trip.")
 
-        trigger_inference = st.button("Check Route Safety Profile", width="stretch")
+        trigger_inference = st.button("Check Route Safety Profile", use_container_width=True)
 
     if trigger_inference:
         if not BACKEND_ONLINE:
@@ -367,7 +337,7 @@ if app_view == "🔮 Route Risk Checker":
     st.header("🕒 Recent Checks This Session")
     if st.session_state.prediction_history:
         hist_df = pd.DataFrame(st.session_state.prediction_history)
-        st.dataframe(hist_df.sort_index(ascending=False), width="stretch")
+        st.dataframe(hist_df.sort_index(ascending=False), use_container_width=True)
     else:
         st.info("ℹ️ No routes checked yet this session. Enter a destination above to see your recent search log history.")
 
@@ -499,7 +469,7 @@ elif app_view == "📊 Travel Data Analytics":
                 "AI Prediction Path": pred_scores[-40:],
                 "Verified Ground Truth": actual_scores[-40:]
             })
-            st.line_chart(comparison_line_df, width="stretch")
+            st.line_chart(comparison_line_df, use_container_width=True)
             
             residual_variance = np.sum((actual_scores - pred_scores) ** 2)
             total_variance = np.sum((actual_scores - np.mean(actual_scores)) ** 2)
@@ -516,7 +486,7 @@ elif app_view == "📊 Travel Data Analytics":
                 "Actual Confirmed Counts": [actual_categories_cleaned.count("Low"), actual_categories_cleaned.count("Moderate"), actual_categories_cleaned.count("High")]
             }
             matrix_df = pd.DataFrame(matrix_records)
-            st.dataframe(matrix_df, width="stretch", hide_index=True)
+            st.dataframe(matrix_df, use_container_width=True, hide_index=True)
 
             matches = sum(1 for p, a in zip(pred_categories, actual_categories_cleaned) if p == a)
             accuracy_percentage = max(72.4, (matches / total_records) * 100 if total_records > 0 else 88.5)
@@ -526,7 +496,7 @@ elif app_view == "📊 Travel Data Analytics":
         st.markdown(f"#### 💾 Complete System Activity Logs (Filtered: {selected_analyst_city})")
         if 'cleaned_city_match' in display_df.columns:
             display_df = display_df.drop(columns=['cleaned_city_match'])
-        st.dataframe(display_df, width="stretch")
+        st.dataframe(display_df, use_container_width=True)
     else:
         st.info("ℹ No safety searches logged yet. Run a few route checks inside the 'Route Risk Checker' menu to view trend graphs.")
 
@@ -539,7 +509,7 @@ elif app_view == "📊 Travel Data Analytics":
     if os.path.exists(profile_path):
         st.markdown("### 🗺️ Typical Risk Distribution Across Core Tourist Locations (%)")
         profiles_df = pd.read_csv(profile_path)
-        st.dataframe(profiles_df, width="stretch")
+        st.dataframe(profiles_df, use_container_width=True)
 
         st.markdown("#### Visual Risk Category Distribution Comparison Graph")
         st.bar_chart(profiles_df.set_index("Location"))
@@ -583,7 +553,7 @@ elif app_view == "📊 Travel Data Analytics":
         s_col1, s_col2 = st.columns([2, 3], gap="medium")
         with s_col1:
             st.markdown(f"#### 📊 Seasonal Breakdown Matrix ({selected_analyst_city})")
-            st.dataframe(seasonal_df, width="stretch", hide_index=True)
+            st.dataframe(seasonal_df, use_container_width=True, hide_index=True)
             if selected_analyst_city == "🌐 Show All Indian Cities Together":
                 st.info("💡 **General Insight:** Showing regional historical averages computed across all available destinations.")
             else:
@@ -591,7 +561,7 @@ elif app_view == "📊 Travel Data Analytics":
             
         with s_col2:
             st.markdown("#### 📈 How Seasonal Hazards Change Across Factors")
-            st.bar_chart(seasonal_df.set_index("Holiday Season Window"), horizontal=True, width="stretch")
+            st.bar_chart(seasonal_df.set_index("Holiday Season Window"), horizontal=True, use_container_width=True)
             
     except Exception as e:
         st.error(f"⚠️ Failed to calculate dynamic seasonal trends: {e}")
@@ -609,7 +579,7 @@ elif app_view == "📊 Travel Data Analytics":
         else:
             filtered_df = attr_df
 
-        st.dataframe(filtered_df.head(100), width="stretch")
+        st.dataframe(filtered_df.head(100), use_container_width=True)
         st.markdown("#### Baseline Summary Distribution Statistics (Overall Score Dispersion)")
         st.dataframe(filtered_df["overall_hazard_score"].describe().to_frame().T)
     else:
