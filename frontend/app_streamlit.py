@@ -26,9 +26,14 @@ FASTAPI_URL = "https://safetravels-ml-engine.onrender.com/predict"
 HEALTH_URL = "https://safetravels-ml-engine.onrender.com/health"
 MAX_HISTORY = 20
 
-# Pull spreadsheet parameters safely from flat global secrets keys
+# Pull spreadsheet parameters safely from secrets falling back to default link
 SPREADSHEET_LINK = st.secrets.get("spreadsheet", "https://docs.google.com/spreadsheets/d/1KFiu3DzOSlDGEsh4vCYnfdUd6Po-0qL3CttLbe7wm1Q/edit")
-WORKSHEET_NAME = st.secrets.get("worksheet", "prediction_responses")
+if st.secrets.get("SPREADSHEET_NAME"):
+    SPREADSHEET_NAME = st.secrets.get("SPREADSHEET_NAME")
+    WORKSHEET_NAME = st.secrets.get("GOOGLE_SHEET_TAB", "prediction_responses")
+else:
+    SPREADSHEET_NAME = "SafeTravels_Cloud_Logs"
+    WORKSHEET_NAME = st.secrets.get("worksheet", "prediction_responses")
 
 if "prediction_history" not in st.session_state:
     st.session_state.prediction_history = []
@@ -40,100 +45,41 @@ st.sidebar.markdown("---")
 
 
 # =====================================================================
-# ROCK-SOLID DIRECT GSPREAD ENGINE (SELF-CLEANING TEXT FIELDS)
+# ROCK-SOLID DIRECT GSPREAD ENGINE (HEX TOKEN ENGINE)
 # =====================================================================
 
-
-def _normalize_private_key(raw_value: str) -> str:
-    """Normalize a Streamlit/ENV private key string into valid PEM format."""
-    if not raw_value:
-        return raw_value
-
-    pem_text = raw_value.strip()
-    pem_text = pem_text.replace("\r\n", "\n").replace("\\n", "\n")
-    pem_text = pem_text.replace(" \n", "\n").replace("\n ", "\n")
-
-    if "-----BEGIN PRIVATE KEY-----" not in pem_text:
-        pem_text = "-----BEGIN PRIVATE KEY-----\n" + pem_text
-    if "-----END PRIVATE KEY-----" not in pem_text:
-        pem_text = pem_text + "\n-----END PRIVATE KEY-----"
-
-    pem_text = pem_text.replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
-    pem_text = pem_text.replace("-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
-
-    lines = [line.strip() for line in pem_text.splitlines() if line.strip()]
-    normalized_lines = []
-    for line in lines:
-        if line.startswith("-----"):
-            normalized_lines.append(line)
-        else:
-            normalized_lines.append("".join(ch for ch in line if ch.isalnum() or ch in "+/="))
-
-    normalized = "\n".join(normalized_lines)
-    if not normalized.endswith("\n"):
-        normalized += "\n"
-    return normalized
-
-
-def _load_service_account_json(raw_json: str):
-    if not raw_json:
-        return None
-    payload = raw_json.strip().replace("\r\n", "\n").replace("\\n", "\n")
-    try:
-        return json.loads(payload)
-    except json.JSONDecodeError:
-        return None
-
-
 def _get_service_account_info():
-    raw_json = None
-    if hasattr(st, "secrets") and st.secrets:
-        raw_json = st.secrets.get("GOOGLE_SERVICE_ACCOUNT_JSON") or st.secrets.get("SERVICE_ACCOUNT_JSON")
-    raw_json = raw_json or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("SERVICE_ACCOUNT_JSON")
+    """Decodes the master hexadecimal credentials token to bypass TOML line break bugs."""
+    try:
+        hex_token = st.secrets.get("UNIFIED_GCP_CREDS_HEX", "")
+        if not hex_token:
+            logging.error("🔐 Google Sheets Error: UNIFIED_GCP_CREDS_HEX missing from secrets panel!")
+            return None
 
-    creds = _load_service_account_json(raw_json)
-    if isinstance(creds, dict):
-        if "private_key" in creds:
-            creds["private_key"] = _normalize_private_key(creds["private_key"])
-        return creds
-
-    def secret(key, fallback=None):
-        if hasattr(st, "secrets") and st.secrets:
-            return st.secrets.get(key, os.getenv(key, fallback))
-        return os.getenv(key, fallback)
-
-    private_key = secret("GCP_PRIVATE_KEY") or secret("GOOGLE_PRIVATE_KEY")
-    if not private_key:
+        # Strip wrapper constraints and natively translate hex strings back to map structures
+        sanitized_token = str(hex_token).strip().replace("\n", "").replace(" ", "")
+        decoded_bytes = bytes.fromhex(sanitized_token)
+        
+        return json.loads(decoded_bytes.decode("utf-8"))
+    except Exception as e:
+        logging.error(f"🛑 Cryptographic token verification failed: {e}")
         return None
-
-    return {
-        "type": secret("GCP_TYPE", "service_account"),
-        "project_id": secret("GCP_PROJECT_ID"),
-        "private_key_id": secret("GCP_PRIVATE_KEY_ID"),
-        "private_key": _normalize_private_key(private_key),
-        "client_email": secret("GCP_CLIENT_EMAIL"),
-        "client_id": secret("GCP_CLIENT_ID"),
-        "auth_uri": secret("GCP_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
-        "token_uri": secret("GCP_TOKEN_URI", "https://oauth2.googleapis.com/token"),
-        "auth_provider_x509_cert_url": secret("GCP_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
-        "client_x509_cert_url": secret("GCP_CLIENT_X509_CERT_URL"),
-        "universe_domain": secret("GCP_UNIVERSE_DOMAIN")
-    }
 
 
 def get_gspread_client():
-    """Initializes a direct gspread connection layer by programmatically formatting text fields."""
+    """Initializes a direct gspread connection layer by cleanly converting hex data."""
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     try:
         creds_dict = _get_service_account_info()
         if not creds_dict:
-            raise ValueError("Missing Google service account information in Streamlit secrets or environment variables.")
+            raise ValueError("Missing Google service account information in Streamlit secrets.")
 
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         return gspread.authorize(creds)
     except Exception as e:
         logging.error(f"🛑 Google Credentials Initialization Failed: {e}")
         return None
+
 
 def fetch_cloud_prediction_logs():
     """Fetches transactional logs from the cloud sheet directly via raw gspread blocks."""
@@ -143,7 +89,12 @@ def fetch_cloud_prediction_logs():
         return None
         
     try:
-        sheet = client.open_by_url(SPREADSHEET_LINK).worksheet(WORKSHEET_NAME)
+        # Securely match sheet records by dynamic workspace names or absolute link references
+        try:
+            sheet = client.open_by_url(SPREADSHEET_LINK).worksheet(WORKSHEET_NAME)
+        except Exception:
+            sheet = client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
+            
         records = sheet.get_all_records()
         if not records:
             return pd.DataFrame()
@@ -160,7 +111,10 @@ def write_cloud_prediction_log(row_data: list):
     if not client:
         return False
     try:
-        sheet = client.open_by_url(SPREADSHEET_LINK).worksheet(WORKSHEET_NAME)
+        try:
+            sheet = client.open_by_url(SPREADSHEET_LINK).worksheet(WORKSHEET_NAME)
+        except Exception:
+            sheet = client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
         
         timestamp = row_data[0]
         location_query = row_data[1]
@@ -492,6 +446,7 @@ elif app_view == "📊 Travel Data Analytics":
 
         st.write("")
 
+        st.columns(2)
         kpi_row1_col1, kpi_row1_col2 = st.columns(2)
         with kpi_row1_col1:
             st.metric(label="🔢 Total Safety Reports Generated", value=f"{len(display_df):,}")
@@ -555,7 +510,7 @@ elif app_view == "📊 Travel Data Analytics":
                 "AI Prediction Path": pred_scores[-40:],
                 "Verified Ground Truth": actual_scores[-40:]
             })
-            st.line_chart(comparison_line_df, use_container_width=True)
+            st.line_chart(comparison_line_df, width="stretch")
             
             residual_variance = np.sum((actual_scores - pred_scores) ** 2)
             total_variance = np.sum((actual_scores - np.mean(actual_scores)) ** 2)
@@ -572,7 +527,7 @@ elif app_view == "📊 Travel Data Analytics":
                 "Actual Confirmed Counts": [actual_categories_cleaned.count("Low"), actual_categories_cleaned.count("Moderate"), actual_categories_cleaned.count("High")]
             }
             matrix_df = pd.DataFrame(matrix_records)
-            st.dataframe(matrix_df, use_container_width=True, hide_index=True)
+            st.dataframe(matrix_df, width="stretch", hide_index=True)
 
             matches = sum(1 for p, a in zip(pred_categories, actual_categories_cleaned) if p == a)
             accuracy_percentage = max(72.4, (matches / total_records) * 100 if total_records > 0 else 88.5)
@@ -582,7 +537,7 @@ elif app_view == "📊 Travel Data Analytics":
         st.markdown(f"#### 💾 Complete System Activity Logs (Filtered: {selected_analyst_city})")
         if 'cleaned_city_match' in display_df.columns:
             display_df = display_df.drop(columns=['cleaned_city_match'])
-        st.dataframe(display_df, use_container_width=True)
+        st.dataframe(display_df, width="stretch")
     else:
         st.info("ℹ No safety searches logged yet. Run a few route checks inside the 'Route Risk Checker' menu to view trend graphs.")
 
@@ -595,7 +550,7 @@ elif app_view == "📊 Travel Data Analytics":
     if os.path.exists(profile_path):
         st.markdown("### 🗺️ Typical Risk Distribution Across Core Tourist Locations (%)")
         profiles_df = pd.read_csv(profile_path)
-        st.dataframe(profiles_df, use_container_width=True)
+        st.dataframe(profiles_df, width="stretch")
 
         st.markdown("#### Visual Risk Category Distribution Comparison Graph")
         st.bar_chart(profiles_df.set_index("Location"))
@@ -603,7 +558,7 @@ elif app_view == "📊 Travel Data Analytics":
         st.info("ℹ Baseline location risk profiles file missing inside analytics folder directory.")
 
     st.write("---")
-    st.markdown("### 🗓️ Macro-Seasonal Weather & Travel Factor Trends")
+    st.header("🗓️ Macro-Seasonal Weather & Travel Factor Trends")
     st.caption(f"Calculates historical risk channel movements updated for: **{selected_analyst_city}**")
 
     try:
@@ -639,7 +594,7 @@ elif app_view == "📊 Travel Data Analytics":
         s_col1, s_col2 = st.columns([2, 3], gap="medium")
         with s_col1:
             st.markdown(f"#### 📊 Seasonal Breakdown Matrix ({selected_analyst_city})")
-            st.dataframe(seasonal_df, use_container_width=True, hide_index=True)
+            st.dataframe(seasonal_df, width="stretch", hide_index=True)
             if selected_analyst_city == "🌐 Show All Indian Cities Together":
                 st.info("💡 **General Insight:** Showing regional historical averages computed across all available destinations.")
             else:
@@ -647,7 +602,7 @@ elif app_view == "📊 Travel Data Analytics":
             
         with s_col2:
             st.markdown("#### 📈 How Seasonal Hazards Change Across Factors")
-            st.bar_chart(seasonal_df.set_index("Holiday Season Window"), horizontal=True, use_container_width=True)
+            st.bar_chart(seasonal_df.set_index("Holiday Season Window"), horizontal=True, width="stretch")
             
     except Exception as e:
         st.error(f"⚠️ Failed to calculate dynamic seasonal trends: {e}")
@@ -665,7 +620,7 @@ elif app_view == "📊 Travel Data Analytics":
         else:
             filtered_df = attr_df
 
-        st.dataframe(filtered_df.head(100), use_container_width=True)
+        st.dataframe(filtered_df.head(100), width="stretch")
         st.markdown("#### Baseline Summary Distribution Statistics (Overall Score Dispersion)")
         st.dataframe(filtered_df["overall_hazard_score"].describe().to_frame().T)
     else:

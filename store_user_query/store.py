@@ -17,13 +17,12 @@ except ImportError:
 # Ingest configuration mappings from your hidden local register file
 load_dotenv()
 
-# ============================================
+# =====================================================================
 # GOOGLE SHEETS CONFIGURATION (CLOUD LAYER)
-# ============================================
-# Read from Streamlit secrets if available, fallback to environment variables
-if st and hasattr(st, "secrets") and "SPREADSHEET_NAME" in st.secrets:
-    SPREADSHEET_NAME = st.secrets.get("SPREADSHEET_NAME")
-    WORKSHEET_NAME = st.secrets.get("GOOGLE_SHEET_TAB")
+# =====================================================================
+if st and hasattr(st, "secrets") and st.secrets:
+    SPREADSHEET_NAME = st.secrets.get("SPREADSHEET_NAME", "SafeTravels_Cloud_Logs")
+    WORKSHEET_NAME = st.secrets.get("GOOGLE_SHEET_TAB", "prediction_responses")
 else:
     SPREADSHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "SafeTravels_Cloud_Logs")
     WORKSHEET_NAME = os.getenv("GOOGLE_SHEET_TAB", "prediction_responses")
@@ -36,81 +35,27 @@ BACKUP_DIR.mkdir(exist_ok=True)
 BACKUP_FILE = BACKUP_DIR / "predict_api_responses_backup.csv"
 
 
-def _normalize_private_key(raw_value: str) -> str:
-    """Normalize a Streamlit/ENV private key string into valid PEM format."""
-    if not raw_value:
-        return raw_value
-
-    pem_text = raw_value.strip()
-    pem_text = pem_text.replace("\r\n", "\n").replace("\\n", "\n")
-    pem_text = pem_text.replace(" \n", "\n").replace("\n ", "\n")
-
-    if "-----BEGIN PRIVATE KEY-----" not in pem_text:
-        pem_text = "-----BEGIN PRIVATE KEY-----\n" + pem_text
-    if "-----END PRIVATE KEY-----" not in pem_text:
-        pem_text = pem_text + "\n-----END PRIVATE KEY-----"
-
-    pem_text = pem_text.replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
-    pem_text = pem_text.replace("-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
-
-    lines = [line.strip() for line in pem_text.splitlines() if line.strip()]
-    normalized_lines = []
-    for line in lines:
-        if line.startswith("-----"):
-            normalized_lines.append(line)
-        else:
-            normalized_lines.append("".join(ch for ch in line if ch.isalnum() or ch in "+/="))
-
-    normalized = "\n".join(normalized_lines)
-    if not normalized.endswith("\n"):
-        normalized += "\n"
-    return normalized
-
-
-def _load_service_account_json(raw_json: str):
-    if not raw_json:
-        return None
-    candidate = raw_json.strip().replace("\r\n", "\n").replace("\\n", "\n")
-    try:
-        return json.loads(candidate)
-    except json.JSONDecodeError:
-        return None
-
-
 def _get_service_account_info():
-    raw_json = None
-    if st and hasattr(st, "secrets") and st.secrets:
-        raw_json = st.secrets.get("GOOGLE_SERVICE_ACCOUNT_JSON") or st.secrets.get("SERVICE_ACCOUNT_JSON")
-    raw_json = raw_json or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("SERVICE_ACCOUNT_JSON")
-
-    creds = _load_service_account_json(raw_json)
-    if isinstance(creds, dict):
-        if "private_key" in creds:
-            creds["private_key"] = _normalize_private_key(creds["private_key"])
-        return creds
-
-    def secret(key, fallback=None):
+    """Decodes the master hexadecimal credentials token to bypass TOML line break bugs."""
+    try:
+        # Check Streamlit secrets first, then environment fallbacks
         if st and hasattr(st, "secrets") and st.secrets:
-            return st.secrets.get(key, os.getenv(key, fallback))
-        return os.getenv(key, fallback)
+            hex_token = st.secrets.get("UNIFIED_GCP_CREDS_HEX", "")
+        else:
+            hex_token = os.getenv("UNIFIED_GCP_CREDS_HEX", "")
 
-    private_key = secret("GCP_PRIVATE_KEY") or secret("GOOGLE_PRIVATE_KEY")
-    if not private_key:
+        if not hex_token:
+            print("✗ Handshake Failed: UNIFIED_GCP_CREDS_HEX configuration is empty or missing.")
+            return None
+
+        # Clean string constraints and reconstruct original JSON map strings
+        sanitized_token = str(hex_token).strip().replace("\n", "").replace(" ", "")
+        decoded_bytes = bytes.fromhex(sanitized_token)
+        
+        return json.loads(decoded_bytes.decode("utf-8"))
+    except Exception as e:
+        print(f"✗ Cryptographic token reconstruction failed: {e}")
         return None
-
-    return {
-        "type": secret("GCP_TYPE", "service_account"),
-        "project_id": secret("GCP_PROJECT_ID"),
-        "private_key_id": secret("GCP_PRIVATE_KEY_ID"),
-        "private_key": _normalize_private_key(private_key),
-        "client_email": secret("GCP_CLIENT_EMAIL"),
-        "client_id": secret("GCP_CLIENT_ID"),
-        "auth_uri": secret("GCP_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
-        "token_uri": secret("GCP_TOKEN_URI", "https://oauth2.googleapis.com/token"),
-        "auth_provider_x509_cert_url": secret("GCP_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
-        "client_x509_cert_url": secret("GCP_CLIENT_X509_CERT_URL"),
-        "universe_domain": secret("GCP_UNIVERSE_DOMAIN")
-    }
 
 
 class GoogleSheetsDatabase:
@@ -139,7 +84,7 @@ class GoogleSheetsDatabase:
             except Exception as e:
                 print(f"✗ Local JSON Handshake Failed: {e}")
 
-        # 🟢 2. LIVE PRODUCTION ENGINE: Pull direct flat variables on Streamlit Cloud
+        # 🟢 2. LIVE PRODUCTION ENGINE: Decrypt hex dictionary on Streamlit Cloud
         creds_dict = _get_service_account_info()
         if creds_dict:
             try:
@@ -164,16 +109,16 @@ class GoogleSheetsDatabase:
         try:
             # Compile row elements exactly matching your spreadsheet headers
             row_to_append = [
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),                                  # A: timestamp
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),                                 # A: timestamp
                 location_query,                                                                # B: location_query
-                response_data.get('resolved_name', 'N/A'),                                    # C: resolved_name
-                float(response_data.get('latitude', 0.0) or 0.0),                             # D: latitude
-                float(response_data.get('longitude', 0.0) or 0.0),                            # E: longitude
+                response_data.get('resolved_name', 'N/A'),                                     # C: resolved_name
+                float(response_data.get('latitude', 0.0) or 0.0),                              # D: latitude
+                float(response_data.get('longitude', 0.0) or 0.0),                             # E: longitude
                 float(response_data.get('predicted_hazard_score', 0.0) or 0.0),                # F: predicted_hazard_score
-                response_data.get('risk_category', 'Unassigned'),                             # G: risk_category
-                response_data.get('destination_type', 'General'),                             # H: destination_type
+                response_data.get('risk_category', 'Unassigned'),                              # G: risk_category
+                response_data.get('destination_type', 'General'),                              # H: destination_type
                 response_data.get('destination_description', 'N/A'),                          # I: destination_description
-                response_data.get('model_version', 'XGBoost.v2.6'),                           # J: model_version
+                response_data.get('model_version', 'XGBoost.v2.6'),                            # J: model_version
                 response_data.get('forecast_date', datetime.now().strftime("%Y-%m-%d")),      # K: forecast_date
                 json.dumps(response_data.get('processed_features', {})),                       # L: processed_features
                 "SUCCESS"                                                                      # M: status flag
@@ -189,7 +134,7 @@ class GoogleSheetsDatabase:
 
 
 def backup_to_csv(response_data: Dict[str, Any], location_query: str):
-    """Store API response as backup CSV (Your original code preserved)"""
+    """Store API response as backup CSV"""
     try:
         flat_data = {
             'timestamp': datetime.now().isoformat(),
@@ -227,7 +172,7 @@ def entry_store(response_data: Dict[str, Any], location_query: str):
     print("📊 STORING PREDICTION DATA (CLOUD ENGINE WORKFLOW)")
     print("="*50)
     
-    # Step 1: Store to CSV backup (Your trusted fallback remains alive!)
+    # Step 1: Store to CSV backup
     print("📁 Step 1: Saving to CSV backup...")
     backup_to_csv(response_data, location_query)
     
