@@ -36,6 +36,83 @@ BACKUP_DIR.mkdir(exist_ok=True)
 BACKUP_FILE = BACKUP_DIR / "predict_api_responses_backup.csv"
 
 
+def _normalize_private_key(raw_value: str) -> str:
+    """Normalize a Streamlit/ENV private key string into valid PEM format."""
+    if not raw_value:
+        return raw_value
+
+    pem_text = raw_value.strip()
+    pem_text = pem_text.replace("\r\n", "\n").replace("\\n", "\n")
+    pem_text = pem_text.replace(" \n", "\n").replace("\n ", "\n")
+
+    if "-----BEGIN PRIVATE KEY-----" not in pem_text:
+        pem_text = "-----BEGIN PRIVATE KEY-----\n" + pem_text
+    if "-----END PRIVATE KEY-----" not in pem_text:
+        pem_text = pem_text + "\n-----END PRIVATE KEY-----"
+
+    pem_text = pem_text.replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
+    pem_text = pem_text.replace("-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
+
+    lines = [line.strip() for line in pem_text.splitlines() if line.strip()]
+    normalized_lines = []
+    for line in lines:
+        if line.startswith("-----"):
+            normalized_lines.append(line)
+        else:
+            normalized_lines.append("".join(ch for ch in line if ch.isalnum() or ch in "+/="))
+
+    normalized = "\n".join(normalized_lines)
+    if not normalized.endswith("\n"):
+        normalized += "\n"
+    return normalized
+
+
+def _load_service_account_json(raw_json: str):
+    if not raw_json:
+        return None
+    candidate = raw_json.strip().replace("\r\n", "\n").replace("\\n", "\n")
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        return None
+
+
+def _get_service_account_info():
+    raw_json = None
+    if st and hasattr(st, "secrets") and st.secrets:
+        raw_json = st.secrets.get("GOOGLE_SERVICE_ACCOUNT_JSON") or st.secrets.get("SERVICE_ACCOUNT_JSON")
+    raw_json = raw_json or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("SERVICE_ACCOUNT_JSON")
+
+    creds = _load_service_account_json(raw_json)
+    if isinstance(creds, dict):
+        if "private_key" in creds:
+            creds["private_key"] = _normalize_private_key(creds["private_key"])
+        return creds
+
+    def secret(key, fallback=None):
+        if st and hasattr(st, "secrets") and st.secrets:
+            return st.secrets.get(key, os.getenv(key, fallback))
+        return os.getenv(key, fallback)
+
+    private_key = secret("GCP_PRIVATE_KEY") or secret("GOOGLE_PRIVATE_KEY")
+    if not private_key:
+        return None
+
+    return {
+        "type": secret("GCP_TYPE", "service_account"),
+        "project_id": secret("GCP_PROJECT_ID"),
+        "private_key_id": secret("GCP_PRIVATE_KEY_ID"),
+        "private_key": _normalize_private_key(private_key),
+        "client_email": secret("GCP_CLIENT_EMAIL"),
+        "client_id": secret("GCP_CLIENT_ID"),
+        "auth_uri": secret("GCP_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
+        "token_uri": secret("GCP_TOKEN_URI", "https://oauth2.googleapis.com/token"),
+        "auth_provider_x509_cert_url": secret("GCP_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
+        "client_x509_cert_url": secret("GCP_CLIENT_X509_CERT_URL"),
+        "universe_domain": secret("GCP_UNIVERSE_DOMAIN")
+    }
+
+
 class GoogleSheetsDatabase:
     """Google Sheets Cloud Data Writer - Production-Ready Replacement for MySQL"""
     
@@ -63,34 +140,20 @@ class GoogleSheetsDatabase:
                 print(f"✗ Local JSON Handshake Failed: {e}")
 
         # 🟢 2. LIVE PRODUCTION ENGINE: Pull direct flat variables on Streamlit Cloud
-        if st and hasattr(st, "secrets") and "GCP_PRIVATE_KEY" in st.secrets:
+        creds_dict = _get_service_account_info()
+        if creds_dict:
             try:
-                private_key = st.secrets.get("GCP_PRIVATE_KEY")
-                creds_dict = {
-                    "type": st.secrets.get("GCP_TYPE"),
-                    "project_id": st.secrets.get("GCP_PROJECT_ID"),
-                    "private_key_id": st.secrets.get("GCP_PRIVATE_KEY_ID"),
-                    "private_key": private_key.replace("\\n", "\n"),
-                    "client_email": st.secrets.get("GCP_CLIENT_EMAIL"),
-                    "client_id": st.secrets.get("GCP_CLIENT_ID"),
-                    "auth_uri": st.secrets.get("GCP_AUTH_URI"),
-                    "token_uri": st.secrets.get("GCP_TOKEN_URI"),
-                    "auth_provider_x509_cert_url": st.secrets.get("GCP_AUTH_PROVIDER_X509_CERT_URL"),
-                    "client_x509_cert_url": st.secrets.get("GCP_CLIENT_X509_CERT_URL"),
-                    "universe_domain": st.secrets.get("GCP_UNIVERSE_DOMAIN")
-                }
                 creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
                 self.client = gspread.authorize(creds)
                 self.sheet = self.client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
                 print(f"✓ Connected via Streamlit Cloud Secrets - Spreadsheet: '{SPREADSHEET_NAME}'")
+                return
             except Exception as e:
                 print(f"✗ Streamlit Cloud Secrets Handshake Failed: {e}")
-                self.client = None
-                self.sheet = None
-        else:
-            print("✗ Connection Failed: No valid credentials sources discovered.")
-            self.client = None
-            self.sheet = None
+
+        print("✗ Connection Failed: No valid credentials sources discovered.")
+        self.client = None
+        self.sheet = None
 
     def insert_prediction(self, response_data: Dict[str, Any], location_query: str):
         """Insert prediction response row directly into the Google Sheet columns (A to M)"""

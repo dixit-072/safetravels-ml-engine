@@ -43,21 +43,92 @@ st.sidebar.markdown("---")
 # ROCK-SOLID DIRECT GSPREAD ENGINE (SELF-CLEANING TEXT FIELDS)
 # =====================================================================
 
+
+def _normalize_private_key(raw_value: str) -> str:
+    """Normalize a Streamlit/ENV private key string into valid PEM format."""
+    if not raw_value:
+        return raw_value
+
+    pem_text = raw_value.strip()
+    pem_text = pem_text.replace("\r\n", "\n").replace("\\n", "\n")
+    pem_text = pem_text.replace(" \n", "\n").replace("\n ", "\n")
+
+    if "-----BEGIN PRIVATE KEY-----" not in pem_text:
+        pem_text = "-----BEGIN PRIVATE KEY-----\n" + pem_text
+    if "-----END PRIVATE KEY-----" not in pem_text:
+        pem_text = pem_text + "\n-----END PRIVATE KEY-----"
+
+    pem_text = pem_text.replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
+    pem_text = pem_text.replace("-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
+
+    lines = [line.strip() for line in pem_text.splitlines() if line.strip()]
+    normalized_lines = []
+    for line in lines:
+        if line.startswith("-----"):
+            normalized_lines.append(line)
+        else:
+            normalized_lines.append("".join(ch for ch in line if ch.isalnum() or ch in "+/="))
+
+    normalized = "\n".join(normalized_lines)
+    if not normalized.endswith("\n"):
+        normalized += "\n"
+    return normalized
+
+
+def _load_service_account_json(raw_json: str):
+    if not raw_json:
+        return None
+    payload = raw_json.strip().replace("\r\n", "\n").replace("\\n", "\n")
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+
+
+def _get_service_account_info():
+    raw_json = None
+    if hasattr(st, "secrets") and st.secrets:
+        raw_json = st.secrets.get("GOOGLE_SERVICE_ACCOUNT_JSON") or st.secrets.get("SERVICE_ACCOUNT_JSON")
+    raw_json = raw_json or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("SERVICE_ACCOUNT_JSON")
+
+    creds = _load_service_account_json(raw_json)
+    if isinstance(creds, dict):
+        if "private_key" in creds:
+            creds["private_key"] = _normalize_private_key(creds["private_key"])
+        return creds
+
+    def secret(key, fallback=None):
+        if hasattr(st, "secrets") and st.secrets:
+            return st.secrets.get(key, os.getenv(key, fallback))
+        return os.getenv(key, fallback)
+
+    private_key = secret("GCP_PRIVATE_KEY") or secret("GOOGLE_PRIVATE_KEY")
+    if not private_key:
+        return None
+
+    return {
+        "type": secret("GCP_TYPE", "service_account"),
+        "project_id": secret("GCP_PROJECT_ID"),
+        "private_key_id": secret("GCP_PRIVATE_KEY_ID"),
+        "private_key": _normalize_private_key(private_key),
+        "client_email": secret("GCP_CLIENT_EMAIL"),
+        "client_id": secret("GCP_CLIENT_ID"),
+        "auth_uri": secret("GCP_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
+        "token_uri": secret("GCP_TOKEN_URI", "https://oauth2.googleapis.com/token"),
+        "auth_provider_x509_cert_url": secret("GCP_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
+        "client_x509_cert_url": secret("GCP_CLIENT_X509_CERT_URL"),
+        "universe_domain": secret("GCP_UNIVERSE_DOMAIN")
+    }
+
+
 def get_gspread_client():
-    """Initializes a direct gspread connection layer by cleanly converting raw JSON string data."""
+    """Initializes a direct gspread connection layer by programmatically formatting text fields."""
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     try:
-        # 🚀 THE DEFINITIVE FIX: Read the entire service account layout directly as a raw JSON dictionary payload block
-        # This completely stops Streamlit's string parser from escaping characters incorrectly
-        raw_json_str = st.secrets.get("GCP_SERVICE_ACCOUNT_JSON", "")
-        
-        if not raw_json_str:
-            logging.error("🔐 Google Sheets Error: GCP_SERVICE_ACCOUNT_JSON parameter is missing or empty!")
-            return None
-            
-        # Parse the valid string directly into standard operational dictionary keys
-        creds_dict = json.loads(raw_json_str)
-        
+        creds_dict = _get_service_account_info()
+        if not creds_dict:
+            raise ValueError("Missing Google service account information in Streamlit secrets or environment variables.")
+
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         return gspread.authorize(creds)
     except Exception as e:
