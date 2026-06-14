@@ -42,37 +42,32 @@ app_view = st.sidebar.radio("Switch Dashboard View:", ["🔮 Route Risk Checker"
 st.sidebar.markdown("---")
 
 
+import json
+from google.oauth2.service_account import Credentials
+
 def get_gspread_client():
-    """Hybrid credential parser supporting local JSON keys or Streamlit Cloud Secrets Manager."""
+    """Bulletproof credentials loader: Reads local file or raw cloud string."""
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     
+    # 1. Check if we are running locally on your computer
     if os.path.exists(GOOGLE_CREDS_FILE):
         try:
             creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=scopes)
             return gspread.authorize(creds)
         except Exception as e:
-            logging.error(f"Local JSON authentication fault: {e}")
+            logging.error(f"Local JSON Auth Error: {e}")
+            
+    # 2. If not local, we are live on Streamlit Cloud
     else:
         try:
-            # 🟢 ULTIMATE FLAT MAPPING: Read all standalone GCP keys straight from st.secrets
-            if st.secrets.get("GCP_PRIVATE_KEY"):
-                creds_dict = {
-                    "type": st.secrets.get("GCP_TYPE"),
-                    "project_id": st.secrets.get("GCP_PROJECT_ID"),
-                    "private_key_id": st.secrets.get("GCP_PRIVATE_KEY_ID"),
-                    "private_key": st.secrets.get("GCP_PRIVATE_KEY"),
-                    "client_email": st.secrets.get("GCP_CLIENT_EMAIL"),
-                    "client_id": st.secrets.get("GCP_CLIENT_ID"),
-                    "auth_uri": st.secrets.get("GCP_AUTH_URI"),
-                    "token_uri": st.secrets.get("GCP_TOKEN_URI"),
-                    "auth_provider_x509_cert_url": st.secrets.get("GCP_AUTH_PROVIDER_X509_CERT_URL"),
-                    "client_x509_cert_url": st.secrets.get("GCP_CLIENT_X509_CERT_URL"),
-                    "universe_domain": st.secrets.get("GCP_UNIVERSE_DOMAIN")
-                }
+            # We fetch the entire raw JSON string directly from st.secrets
+            raw_json_string = st.secrets.get("GCP_CREDS_JSON_RAW")
+            if raw_json_string:
+                creds_dict = json.loads(raw_json_string)
                 creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
                 return gspread.authorize(creds)
         except Exception as e:
-            logging.error(f"Streamlit Cloud Secrets authentication fault: {e}")
+            logging.error(f"Streamlit Cloud Secrets Auth Error: {e}")
             
     return None
 
