@@ -6,7 +6,6 @@ import os
 import numpy as np
 import gspread
 import json
-import base64
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from dotenv import load_dotenv
@@ -27,7 +26,7 @@ FASTAPI_URL = "https://safetravels-ml-engine.onrender.com/predict"
 HEALTH_URL = "https://safetravels-ml-engine.onrender.com/health"
 MAX_HISTORY = 20
 
-# Pull spreadsheet parameters safely from secrets falling back to master strings
+# Pull spreadsheet parameters safely from flat global secrets keys
 SPREADSHEET_LINK = st.secrets.get("spreadsheet", "https://docs.google.com/spreadsheets/d/1KFiu3DzOSlDGEsh4vCYnfdUd6Po-0qL3CttLbe7wm1Q/edit")
 WORKSHEET_NAME = st.secrets.get("worksheet", "prediction_responses")
 
@@ -41,27 +40,35 @@ st.sidebar.markdown("---")
 
 
 # =====================================================================
-# ROCK-SOLID PROGRAMMATIC GOOGLE SHEETS PIPELINE (DIRECT gspread + BASE64)
+# ROCK-SOLID DIRECT GSPREAD ENGINE (SELF-CLEANING TEXT FIELDS)
 # =====================================================================
 
 def get_gspread_client():
-    """Decodes a flat Base64 string directly in memory, programmatically clearing hidden characters."""
+    """Initializes a direct gspread connection layer by programmatically formatting text fields."""
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     try:
-        # Pull down the solid base64 block from secrets
-        base64_payload = st.secrets.get("GCP_CREDS_BASE64_FINAL", "")
+        raw_private_key = st.secrets.get("private_key", "")
         
-        if not base64_payload:
-            logging.error("🔐 Google Sheets Error: GCP_CREDS_BASE64_FINAL missing from secrets!")
+        if not raw_private_key:
+            logging.error("🔐 Google Sheets Error: 'private_key' attribute is missing or empty inside secrets!")
             return None
             
-        # 🚀 SELF-CLEANING BOOSTER: Strip out quotes, spaces, hidden line-breaks, or carriage returns completely
-        clean_payload = str(base64_payload).strip().strip('"').strip("'")
-        clean_payload = clean_payload.replace("\n", "").replace("\r", "").replace(" ", "")
+        # Programmatically sanitize hidden carriage returns and escape sequence errors
+        cleaned_key = str(raw_private_key).strip().strip('"').strip("'")
+        cleaned_key = cleaned_key.replace("\\n", "\n")
         
-        # Natively decode back into standard service account dictionary
-        decoded_bytes = base64.b64decode(clean_payload)
-        creds_dict = json.loads(decoded_bytes)
+        creds_dict = {
+            "type": "service_account",
+            "project_id": st.secrets.get("project_id", "safetravels-engine"),
+            "private_key_id": st.secrets.get("private_key_id", "fed64ac9c59d7a77b90119dfffcf7ed8ec066446"),
+            "private_key": cleaned_key,
+            "client_email": st.secrets.get("client_email", "logger@safetravels-engine.iam.gserviceaccount.com"),
+            "client_id": st.secrets.get("client_id", "105428089683554586068"),
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/logger%40safetravels-engine.iam.gserviceaccount.com"
+        }
         
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         return gspread.authorize(creds)
@@ -78,7 +85,6 @@ def fetch_cloud_prediction_logs():
         return None
         
     try:
-        # Open by direct URL link string to guarantee a clean match across servers
         sheet = client.open_by_url(SPREADSHEET_LINK).worksheet(WORKSHEET_NAME)
         records = sheet.get_all_records()
         if not records:
@@ -111,7 +117,6 @@ def write_cloud_prediction_log(row_data: list):
         forecast_date = row_data[10]
         processed_features_dict = row_data[11]
 
-        # Explicitly match the 13 columns layout structure from A to M (including SUCCESS flag)
         synchronized_payload = [
             str(timestamp),
             str(location_query),
@@ -190,7 +195,7 @@ if app_view == "🔮 Route Risk Checker":
             st.sidebar.error("🔴 System Offline")
         st.sidebar.info("✨ Live Mode Active: Fetching real-time weather and satellite tracking inputs for your trip.")
 
-        trigger_inference = st.button("Check Route Safety Profile", use_container_width=True)
+        trigger_inference = st.button("Check Route Safety Profile", width="stretch")
 
     if trigger_inference:
         if not BACKEND_ONLINE:
