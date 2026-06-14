@@ -57,14 +57,17 @@ def get_gspread_client():
     # 2. If not local, we are live on Streamlit Cloud
     else:
         try:
-            # DIRECT FLAT TOML INGESTION: Collect the plain text parameters straight from st.secrets
+            # DIRECT FLAT TOML INGESTION: Collect parameters from st.secrets
             private_key = st.secrets.get("GCP_PRIVATE_KEY")
             if private_key:
+                # 🟢 THE CRYPTO FIX: Clean up hidden raw line breaks and normalize format
+                cleaned_private_key = private_key.replace("\\n", "\n")
+                
                 creds_dict = {
                     "type": st.secrets.get("GCP_TYPE"),
                     "project_id": st.secrets.get("GCP_PROJECT_ID"),
                     "private_key_id": st.secrets.get("GCP_PRIVATE_KEY_ID"),
-                    "private_key": private_key,
+                    "private_key": cleaned_private_key,
                     "client_email": st.secrets.get("GCP_CLIENT_EMAIL"),
                     "client_id": st.secrets.get("GCP_CLIENT_ID"),
                     "auth_uri": st.secrets.get("GCP_AUTH_URI"),
