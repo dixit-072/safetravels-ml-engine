@@ -49,36 +49,20 @@ st.sidebar.markdown("---")
 # =====================================================================
 
 def _get_service_account_info():
-    """Decodes the master hexadecimal credentials token to bypass TOML line break bugs."""
     try:
-        hex_token = st.secrets.get("UNIFIED_GCP_CREDS_HEX", "")
-        if not hex_token:
-            logging.error("🔐 Google Sheets Error: UNIFIED_GCP_CREDS_HEX missing from secrets panel!")
-            return None
-
-        # Strip wrapper constraints and natively translate hex strings back to map structures
-        sanitized_token = str(hex_token).strip().replace("\n", "").replace(" ", "")
-        decoded_bytes = bytes.fromhex(sanitized_token)
-        
-        return json.loads(decoded_bytes.decode("utf-8"))
-    except Exception as e:
-        logging.error(f"🛑 Cryptographic token verification failed: {e}")
-        return None
+        b64_token = st.secrets.get("GCP_CREDS_B64", "")
+        if not b64_token: return None
+        clean_token = str(b64_token).strip().replace("\n", "").replace(" ", "").replace('"', '').replace("'", "")
+        return json.loads(base64.b64decode(clean_token).decode("utf-8"))
+    except Exception: return None
 
 
 def get_gspread_client():
-    """Initializes a direct gspread connection layer by cleanly converting hex data."""
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    try:
-        creds_dict = _get_service_account_info()
-        if not creds_dict:
-            raise ValueError("Missing Google service account information in Streamlit secrets.")
-
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        return gspread.authorize(creds)
-    except Exception as e:
-        logging.error(f"🛑 Google Credentials Initialization Failed: {e}")
-        return None
+    creds_dict = _get_service_account_info()
+    if not creds_dict: return None
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    return gspread.authorize(creds)
 
 
 def fetch_cloud_prediction_logs():
