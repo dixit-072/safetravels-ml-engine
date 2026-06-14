@@ -7,7 +7,12 @@ from typing import Dict, Any
 from dotenv import load_dotenv
 import gspread
 from google.oauth2.service_account import Credentials
-import json
+
+# Import Streamlit safely so backend tasks don't crash if executed manually
+try:
+    import streamlit as st
+except ImportError:
+    st = None
 
 # Ingest configuration mappings from your hidden local register file
 load_dotenv()
@@ -15,9 +20,15 @@ load_dotenv()
 # ============================================
 # GOOGLE SHEETS CONFIGURATION (CLOUD LAYER)
 # ============================================
+# Read from Streamlit secrets if available, fallback to environment variables
+if st and hasattr(st, "secrets") and "SPREADSHEET_NAME" in st.secrets:
+    SPREADSHEET_NAME = st.secrets.get("SPREADSHEET_NAME")
+    WORKSHEET_NAME = st.secrets.get("GOOGLE_SHEET_TAB")
+else:
+    SPREADSHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "SafeTravels_Cloud_Logs")
+    WORKSHEET_NAME = os.getenv("GOOGLE_SHEET_TAB", "prediction_responses")
+
 GOOGLE_CREDS_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "google_creds.json")
-SPREADSHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "SafeTravels_Cloud_Logs")
-WORKSHEET_NAME = os.getenv("GOOGLE_SHEET_TAB", "prediction_responses")
 
 # Backup CSV path (Kept intact exactly as you designed it)
 BACKUP_DIR = Path("data")
@@ -39,15 +50,45 @@ class GoogleSheetsDatabase:
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-        try:
-            creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=scopes)
-            self.client = gspread.authorize(creds)
-            # Open the targeted spreadsheet matrices
-            self.sheet = self.client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
-            print(f"✓ Connected to Google Cloud Engine - Spreadsheet: '{SPREADSHEET_NAME}'")
-        except Exception as e:
-            print(f"✗ Google Cloud Connection Failed: {e}")
-            print("💡 Make sure your 'google_creds.json' file is present and shared with your sheet email editor address!")
+        
+        # 🟢 1. LOCAL MACHINE FALLBACK: Check if running locally on your laptop
+        if os.path.exists(GOOGLE_CREDS_FILE):
+            try:
+                creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=scopes)
+                self.client = gspread.authorize(creds)
+                self.sheet = self.client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
+                print(f"✓ Connected via Local JSON - Spreadsheet: '{SPREADSHEET_NAME}'")
+                return
+            except Exception as e:
+                print(f"✗ Local JSON Handshake Failed: {e}")
+
+        # 🟢 2. LIVE PRODUCTION ENGINE: Pull direct flat variables on Streamlit Cloud
+        if st and hasattr(st, "secrets") and "GCP_PRIVATE_KEY" in st.secrets:
+            try:
+                private_key = st.secrets.get("GCP_PRIVATE_KEY")
+                creds_dict = {
+                    "type": st.secrets.get("GCP_TYPE"),
+                    "project_id": st.secrets.get("GCP_PROJECT_ID"),
+                    "private_key_id": st.secrets.get("GCP_PRIVATE_KEY_ID"),
+                    "private_key": private_key.replace("\\n", "\n"),
+                    "client_email": st.secrets.get("GCP_CLIENT_EMAIL"),
+                    "client_id": st.secrets.get("GCP_CLIENT_ID"),
+                    "auth_uri": st.secrets.get("GCP_AUTH_URI"),
+                    "token_uri": st.secrets.get("GCP_TOKEN_URI"),
+                    "auth_provider_x509_cert_url": st.secrets.get("GCP_AUTH_PROVIDER_X509_CERT_URL"),
+                    "client_x509_cert_url": st.secrets.get("GCP_CLIENT_X509_CERT_URL"),
+                    "universe_domain": st.secrets.get("GCP_UNIVERSE_DOMAIN")
+                }
+                creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+                self.client = gspread.authorize(creds)
+                self.sheet = self.client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
+                print(f"✓ Connected via Streamlit Cloud Secrets - Spreadsheet: '{SPREADSHEET_NAME}'")
+            except Exception as e:
+                print(f"✗ Streamlit Cloud Secrets Handshake Failed: {e}")
+                self.client = None
+                self.sheet = None
+        else:
+            print("✗ Connection Failed: No valid credentials sources discovered.")
             self.client = None
             self.sheet = None
 
@@ -60,19 +101,19 @@ class GoogleSheetsDatabase:
         try:
             # Compile row elements exactly matching your spreadsheet headers
             row_to_append = [
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),                  # A: timestamp
-                location_query,                                               # B: location_query
-                response_data.get('resolved_name', 'N/A'),                    # C: resolved_name
-                float(response_data.get('latitude', 0.0) or 0.0),             # D: latitude
-                float(response_data.get('longitude', 0.0) or 0.0),            # E: longitude
-                float(response_data.get('predicted_hazard_score', 0.0) or 0.0),# F: predicted_hazard_score
-                response_data.get('risk_category', 'Unassigned'),             # G: risk_category
-                response_data.get('destination_type', 'General'),             # H: destination_type
-                response_data.get('destination_description', 'N/A'),          # I: destination_description
-                response_data.get('model_version', 'XGBoost.v2.6'),           # J: model_version
-                response_data.get('forecast_date', datetime.now().strftime("%Y-%m-%d")), # K: forecast_date
-                json.dumps(response_data.get('processed_features', {})),       # L: processed_features
-                "SUCCESS"                                                      # M: status flag
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),                                  # A: timestamp
+                location_query,                                                                # B: location_query
+                response_data.get('resolved_name', 'N/A'),                                    # C: resolved_name
+                float(response_data.get('latitude', 0.0) or 0.0),                             # D: latitude
+                float(response_data.get('longitude', 0.0) or 0.0),                            # E: longitude
+                float(response_data.get('predicted_hazard_score', 0.0) or 0.0),                # F: predicted_hazard_score
+                response_data.get('risk_category', 'Unassigned'),                             # G: risk_category
+                response_data.get('destination_type', 'General'),                             # H: destination_type
+                response_data.get('destination_description', 'N/A'),                          # I: destination_description
+                response_data.get('model_version', 'XGBoost.v2.6'),                           # J: model_version
+                response_data.get('forecast_date', datetime.now().strftime("%Y-%m-%d")),      # K: forecast_date
+                json.dumps(response_data.get('processed_features', {})),                       # L: processed_features
+                "SUCCESS"                                                                      # M: status flag
             ]
             
             # Stream row to Google Sheets cloud matrix
