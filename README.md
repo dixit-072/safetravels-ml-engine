@@ -7,18 +7,14 @@
 
 SafeTravels AI is an end-to-end Machine Learning pipeline and interactive transit tracking engine designed to compute real-time environmental risk scores for travelers. By fusing live, localized meteorological telemetry with geographical terrain arrays, this engine handles microclimate shifts and dynamically outputs a deterministic hazard classification profile (0-100%).
 
-### 🎥 Project Showcases
-> **[Watch the 2-Minute Guided Video Demonstration](Insert your YouTube link here)**
-> 
-> **[Explore the Live Production Dashboard](Insert your Streamlit link here)**
-
-*⚠️ Production Infrastructure Note: The FastAPI machine learning inference core is hosted on a free cloud tier on Render. If the service has been inactive for more than 15 minutes, the server will spin down into sleep mode. Please allow roughly 30–40 seconds for the cloud container to execute its first "cold start" initialization cycle.*
+### 🚀 Live Production Dashboard
+> **[Experience the Live Interactive Dashboard Here](https://dixit-072-safetravels-ml-engine-frontendapp-streamlit-lzmyho.streamlit.app/)**
 
 ---
 
 ## 🧠 System Architecture Matrix
 
-The platform is engineered using a decoupled microservice framework, isolating the underlying compute/inference nodes from the client-facing display suite to optimize uptime and limit resource consumption.
+The platform is engineered using a decoupled microservice framework, isolating the underlying compute/inference nodes from the client-facing display suite to optimize uptime, limit resource consumption, and ensure highly available API routing.
 
 ```text
        [ Client Dashboard Interface ] (Streamlit Cloud Instance)
@@ -107,8 +103,8 @@ streamlit run app_streamlit.py
 ---
 
 ## 📈 Future Enhancement Map
-* **Multi-Day Travel Schedules:** Scaling core payload models to process multi-step array indexes for scheduling predictions 7 days into the future.
-* **Managed Database Tracking Layers:** Migrating current local session history storage blocks to a persistent PostgreSQL relational instance hosted in the cloud.
+* **Dynamic Global Geocoding:** Migrating from hardcoded topographical dictionaries to a live OpenStreetMap Geocoding API to dynamically process altitude and coordinates for any city globally.
+* **Managed Database Tracking Layers:** Transitioning local session state tracking to a persistent cloud database to capture historical route risk trends over time.
 
 ---
-*Developed by Dixit Sharma — Data Analyst & Machine Learning Engineer. Let's connect on www.linkedin.com/in/dixit-data-analyst
+*Developed by **Dixit Sharma** — Data Analyst & Machine Learning Engineer. Let's connect on [LinkedIn](https://www.linkedin.com/in/dixit-data-analyst)!*
