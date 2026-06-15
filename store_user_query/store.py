@@ -9,7 +9,13 @@ def get_creds():
     """Smart loader: uses Cloud Secret if present, otherwise local file."""
     # 1. Cloud Mode
     if hasattr(st, "secrets") and "GCP_JSON" in st.secrets:
-        return json.loads(st.secrets["GCP_JSON"])
+        creds_dict = json.loads(st.secrets["GCP_JSON"])
+        # --- ADD THIS LINE ---
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        # ---------------------
+        return creds_dict
+        
     # 2. Local Mode
     if os.path.exists("google_creds.json"):
         with open("google_creds.json") as f:
