@@ -50,13 +50,16 @@ st.sidebar.markdown("---")
 # =====================================================================
 
 def _get_service_account_info():
+    """Loads raw JSON string directly from secrets."""
     try:
-        b64_token = st.secrets.get("GCP_CREDS_B64", "")
-        if not b64_token: return None
-        clean_token = str(b64_token).strip().replace("\n", "").replace(" ", "").replace('"', '').replace("'", "")
-        return json.loads(base64.b64decode(clean_token).decode("utf-8"))
-    except Exception: return None
-
+        # We will use the key 'GOOGLE_SERVICE_ACCOUNT_JSON'
+        raw_json = st.secrets.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+        if not raw_json: 
+            return None
+        return json.loads(raw_json)
+    except Exception as e:
+        logging.error(f"🛑 JSON Loading Error: {e}")
+        return None
 
 def get_gspread_client():
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
