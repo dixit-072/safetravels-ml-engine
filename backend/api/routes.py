@@ -1,6 +1,7 @@
 import os
 import pickle
 import logging
+import requests
 import pandas as pd
 import numpy as np
 from fastapi import APIRouter, HTTPException
@@ -70,7 +71,6 @@ CITY_PROFILES = {
     }
 }
 
-# General fallback defaults for undefined cities to prevent crazy extreme values
 DEFAULT_PROFILE = {
     "elevation_range": (200, 600),
     "temp_range": (22.0, 32.0),
@@ -78,6 +78,29 @@ DEFAULT_PROFILE = {
     "latitude": 20.5937,
     "longitude": 78.9629
 }
+
+
+# =====================================================================
+# LIVE METEOROLOGICAL NETWORK UTILITY
+# =====================================================================
+def fetch_real_time_weather(lat: float, lon: float) -> dict:
+    """
+    Queries Open-Meteo global tracking array for live surface telemetry.
+    Returns parsed dictionary parameters or None upon request timeout.
+    """
+    try:
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,rain,wind_speed_10m"
+        response = requests.get(url, timeout=6)
+        if response.status_code == 200:
+            current_data = response.json().get("current", {})
+            return {
+                "rain": float(current_data.get("rain", 0.0)),
+                "temp_max": float(current_data.get("temperature_2m", 20.0)),
+                "wind_speed": float(current_data.get("wind_speed_10m", 10.0))
+            }
+    except Exception as network_err:
+        logging.warning(f"⚠️ Live API connection dropped. Reverting to regional simulation: {network_err}")
+    return None
 
 
 class RoutePredictionRequest(BaseModel):
@@ -105,26 +128,33 @@ async def predict_route_risk(payload: RoutePredictionRequest):
         resolved_name = payload.location_query.strip().capitalize()
         target_date_str = payload.target_date.strip()
         
-        # Keep calculations consistent using determinism seeds
+        # Enforce mathematical determinism based on city-date combination
         seed_string = f"{resolved_name}_{target_date_str}"
         seed_value = sum(ord(char) for char in seed_string)
         np.random.seed(seed_value)
         
-        # =====================================================================
-        # DYNAMIC PROFILE RETRIEVAL LOGIC
-        # =====================================================================
-        # Check if the user's city exists in our geo-library map
+        # Load local base metadata profile
         profile = CITY_PROFILES.get(resolved_name, DEFAULT_PROFILE)
         
-        # Generate clean simulation parameters bound by real city ranges
+        # Determine topographical layout limits
         elevation = float(np.random.randint(profile["elevation_range"][0], profile["elevation_range"][1]))
-        temp_max = float(np.random.uniform(profile["temp_range"][0], profile["temp_range"][1]))
         
-        # General randomized seasonal weather indicators
-        rain = float(np.random.uniform(0.0, 12.0))
-        wind_speed = float(np.random.uniform(5.0, 28.0))
+        # =====================================================================
+        # REAL-TIME CORRIDOR TELEMETRY FETCH
+        # =====================================================================
+        live_weather = fetch_real_time_weather(profile["latitude"], profile["longitude"])
         
-        # Apply structured model mathematical adjustments
+        if live_weather:
+            rain = live_weather["rain"]
+            temp_max = live_weather["temp_max"]
+            wind_speed = live_weather["wind_speed"]
+        else:
+            # Resilient fallback matrices if connection interface fails
+            rain = float(np.random.uniform(0.0, 12.0))
+            temp_max = float(np.random.uniform(profile["temp_range"][0], profile["temp_range"][1]))
+            wind_speed = float(np.random.uniform(5.0, 28.0))
+        
+        # Apply mathematical scaling penalties for extreme altimeters
         elevation_penalty = 0.0 if elevation < 1000 else (elevation - 1000) * 0.02
         
         raw_features = {
@@ -138,16 +168,19 @@ async def predict_route_risk(payload: RoutePredictionRequest):
             "festival_boost": float(np.random.choice([0.0, 5.0, 10.0]))
         }
         
+        # Align features array with model training parameters layout matrix
         input_df = pd.DataFrame([raw_features])
         if feature_schema is not None:
             input_df = input_df.reindex(columns=feature_schema, fill_value=0.0)
         
+        # Extract classification probability metric weights
         if hasattr(model, "predict_proba"):
             prediction_score = model.predict_proba(input_df)[0][1] * 100
         else:
             prediction_score = model.predict(input_df)[0]
             prediction_score = max(0.0, min(100.0, float(prediction_score)))
         
+        # Risk Evaluation Tier Assignments
         if prediction_score < 25:
             risk_category = "Minimal Risk 🟢"
         elif prediction_score < 45:
