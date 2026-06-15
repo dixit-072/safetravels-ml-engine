@@ -83,20 +83,33 @@ DEFAULT_PROFILE = {
 # =====================================================================
 # LIVE METEOROLOGICAL NETWORK UTILITY
 # =====================================================================
+# =====================================================================
+# LIVE METEOROLOGICAL NETWORK UTILITY
+# =====================================================================
 def fetch_real_time_weather(lat: float, lon: float) -> dict:
     """
     Queries Open-Meteo global tracking array for live surface telemetry.
     Returns parsed dictionary parameters or None upon request timeout.
     """
     try:
-        # Using 'precipitation' to catch both steady rain and convective showers
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,precipitation,wind_speed_10m"
+        # We ask for current temp/wind, but DAILY total precipitation to calculate real travel risk!
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,wind_speed_10m&daily=precipitation_sum&timezone=auto&forecast_days=1"
         response = requests.get(url, timeout=6)
+        
         if response.status_code == 200:
-            current_data = response.json().get("current", {})
+            data = response.json()
+            current_data = data.get("current", {})
+            daily_data = data.get("daily", {})
+            
+            # Extract the total accumulated rain for today safely
+            total_daily_rain = 0.0
+            if "precipitation_sum" in daily_data and len(daily_data["precipitation_sum"]) > 0:
+                # Some API returns might have 'None' if the day just rolled over, so we catch it
+                val = daily_data["precipitation_sum"][0]
+                total_daily_rain = float(val) if val is not None else 0.0
+
             return {
-                # Map precipitation to the 'rain' key so the ML model reads it correctly
-                "rain": float(current_data.get("precipitation", 0.0)),
+                "rain": total_daily_rain,
                 "temp_max": float(current_data.get("temperature_2m", 20.0)),
                 "wind_speed": float(current_data.get("wind_speed_10m", 10.0))
             }
