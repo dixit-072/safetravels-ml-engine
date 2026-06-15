@@ -46,28 +46,45 @@ st.sidebar.markdown("---")
 
 
 # =====================================================================
-# ROCK-SOLID DIRECT GSPREAD ENGINE (HEX TOKEN ENGINE)
+# ROCK-SOLID DIRECT GSPREAD ENGINE (HEX TOKEN ENGINE - FIXED FOR FLAT KEYS)
 # =====================================================================
 
 def _get_service_account_info():
-    """Builds the dictionary from individual secret keys (No JSON syntax in the box)."""
+    """Smart credential engine mapped to look for individual environment tokens or st.secrets directly."""
     try:
-        # We will use simple, flat keys now
+        # Helper logic to capture cloud variables or local system variables fluidly
+        def get_val(key_name):
+            if hasattr(st, "secrets") and key_name in st.secrets:
+                return st.secrets[key_name]
+            return os.getenv(key_name, "")
+
+        # Target verification check to make sure variables are flowing inside the stack
+        target_project = get_val("GCP_PROJECT_ID")
+        if not target_project:
+            return None
+
+        raw_key = get_val("GCP_PRIVATE_KEY")
+        # Ensure the key opens and closes with perfect standard line breaks
+        if not raw_key.startswith("-----BEGIN PRIVATE KEY-----"):
+            raw_key = "-----BEGIN PRIVATE KEY-----\n" + raw_key
+        if not raw_key.endswith("-----END PRIVATE KEY-----"):
+            raw_key = raw_key + "\n-----END PRIVATE KEY-----"
+
         return {
-            "type": st.secrets["GCP_TYPE"],
-            "project_id": st.secrets["GCP_PROJECT_ID"],
-            "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": st.secrets["GCP_PRIVATE_KEY"].replace("\\n", "\n"),
-            "client_email": st.secrets["GCP_CLIENT_EMAIL"],
-            "client_id": st.secrets["GCP_CLIENT_ID"],
-            "auth_uri": st.secrets["GCP_AUTH_URI"],
-            "token_uri": st.secrets["GCP_TOKEN_URI"],
-            "auth_provider_x509_cert_url": st.secrets["GCP_AUTH_PROVIDER_X509_CERT_URL"],
-            "client_x509_cert_url": st.secrets["GCP_CLIENT_X509_CERT_URL"],
+            "type": get_val("GCP_TYPE"),
+            "project_id": target_project,
+            "private_key_id": get_val("GCP_PRIVATE_KEY_ID"),
+            "private_key": raw_key.replace("\\n", "\n"),
+            "client_email": get_val("GCP_CLIENT_EMAIL"),
+            "client_id": get_val("GCP_CLIENT_ID"),
+            "auth_uri": get_val("GCP_AUTH_URI"),
+            "token_uri": get_val("GCP_TOKEN_URI"),
+            "auth_provider_x509_cert_url": get_val("GCP_AUTH_PROVIDER_X509_CERT_URL"),
+            "client_x509_cert_url": get_val("GCP_CLIENT_X509_CERT_URL"),
             "universe_domain": "googleapis.com"
         }
     except Exception as e:
-        print(f"✗ Credential build failed: {e}")
+        logging.error(f"🛑 Critical structural break during background authorization handshakes: {e}")
         return None
 
 def get_gspread_client():
