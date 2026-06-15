@@ -10,6 +10,7 @@ import base64
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from dotenv import load_dotenv
+from summary import generate_semantic_narrative  # Import your clean modular summary engine
 
 # Ingest configuration mappings from the hidden environment file
 load_dotenv()
@@ -276,6 +277,16 @@ if app_view == "🔮 Route Risk Checker":
                 score = res_data.get("predicted_hazard_score")
                 tier = res_data.get("risk_category")
                 
+                # Normalize telemetry properties for formatting safety fallbacks
+                normalized_features = {
+                    "rain": float(telemetry.get('rain', 0.0)),
+                    "wind_speed": float(telemetry.get('wind_speed', 0.0)),
+                    "temp_max": float(telemetry.get('temp_max', 0.0)),
+                    "elevation": float(telemetry.get('elevation', 0.0)),
+                    "resolved_name": res_data.get("resolved_name", "Specified Destination"),
+                    "risk_score": float(score)
+                }
+                
                 with col_inputs:
                     st.write("")
                     st.subheader("📊 Current Live Conditions")
@@ -286,16 +297,16 @@ if app_view == "🔮 Route Risk Checker":
                     
                     m_r1_c1, m_r1_col2 = st.columns(2)
                     with m_r1_c1:
-                        st.metric(label="⛰️ Altitude Height", value=f"{float(telemetry.get('elevation', 0)):,.0f} meters")
+                        st.metric(label="⛰️ Altitude Height", value=f"{normalized_features['elevation']:,.0f} meters")
                     with m_r1_col2:
-                        st.metric(label="🌡️ Expected Temperature", value=f"{float(telemetry.get('temp_max', 0)):.1f} °C")
+                        st.metric(label="🌡️ Expected Temperature", value=f"{normalized_features['temp_max']:.1f} °C")
                         
                     st.write("")
                     m_r2_c1, m_r2_col2 = st.columns(2)
                     with m_r2_c1:
-                        st.metric(label="🌧️ Predicted Rainfall", value=f"{float(telemetry.get('rain', 0)):.2f} mm")
+                        st.metric(label="🌧️ Predicted Rainfall", value=f"{normalized_features['rain']:.2f} mm")
                     with m_r2_col2:
-                        st.metric(label="💨 Estimated Wind Speed", value=f"{float(telemetry.get('wind_speed', 0)):.1f} km/h")
+                        st.metric(label="💨 Estimated Wind Speed", value=f"{normalized_features['wind_speed']:.1f} km/h")
 
                 with col_advisory:
                     try:
@@ -313,33 +324,49 @@ if app_view == "🔮 Route Risk Checker":
                         fallback_df = pd.DataFrame({"latitude": [32.2396], "longitude": [77.1887]})
                         st.map(fallback_df, width='stretch')
                     
-                    if "Minimal" in tier: st.success("### ✅ Minimal Risk (Excellent Route Conditions)")
-                    elif "Low" in tier: st.success("### 🍏 Low Risk (Stable Route Conditions)")
-                    elif "Moderate" in tier: st.warning("### 🟡 Moderate Risk (Drive Safely & Exercise Normal Caution)")
-                    elif "Elevated" in tier: st.warning("### 🟠 Elevated Risk (Expect Minor Route Delays)")
-                    else: st.error("### 🚨 Critical Hazard (Travel Postponement Strongly Advised)")
+                    # Compute Risk Share Weights for Explainability Model
+                    weather_weight = float(normalized_features['rain'] * 1.5 + normalized_features['wind_speed'] * 0.5)
+                    terrain_weight = float(telemetry.get('elevation_penalty', 0) * 2.0 + telemetry.get('transport_complexity_score', 0) * 0.2)
+                    crowd_weight = float(telemetry.get('crowd_baseline', 45) + telemetry.get('festival_boost', 0))
+                    total_weight = weather_weight + terrain_weight + crowd_weight
+                    if total_weight == 0: total_weight = 1.0
+
+                    w_pct = round((weather_weight / total_weight) * 100, 1)
+                    t_pct = round((terrain_weight / total_weight) * 100, 1)
+                    c_pct = round((crowd_weight / total_weight) * 100, 1)
+
+                    # Generate Semantic Narrative String from separate module
+                    generated_narrative = generate_semantic_narrative(normalized_features, tier)
+
+                    # =====================================================================
+                    # 🏅 EXPLAINABILITY HUDS (3 SIMULTANEOUS OUTPUTS - UPGRADED)
+                    # =====================================================================
+                    st.markdown("---")
+                    st.subheader("🔮 Hybrid AI Safety Narrative Dashboard")
                     
+                    # Generate the complete randomized markdown block from summary.py
+                    generated_narrative = generate_semantic_narrative(normalized_features, tier)
+
+                    # Render the beautiful pre-built layout inside matched theme boxes
+                    if tier in ["Minimal", "Low"]:
+                        st.info(generated_narrative)
+                    elif tier in ["Moderate", "Elevated"]:
+                        st.warning(generated_narrative)
+                    else:
+                        st.error(generated_narrative)
+                    
+                    st.write("")
                     st.metric(label="Overall Safety Risk Score (0 = Safest, 100 = Hazardous)", value=f"{score:.2f} / 100")
                     st.progress(float(score) / 100.0)
                     st.caption(f"🤖 Powered by AI Risk Models | Application Version: v{res_data.get('model_version')}")
                     
                     st.write("---")
-                    st.markdown("#### 📡 What is Driving Your Risk Score?")
-                    st.caption("This chart breaks down how much active weather versus local terrain shapes your total risk level.")
-                    
-                    weather_weight = float(telemetry.get('rain', 0) * 1.5 + telemetry.get('wind_speed', 0) * 0.5)
-                    terrain_weight = float(telemetry.get('elevation_penalty', 0) * 2.0 + telemetry.get('transport_complexity_score', 0) * 0.2)
-                    crowd_weight = float(telemetry.get('crowd_baseline', 45) + telemetry.get('festival_boost', 0))
-                    
-                    total_weight = weather_weight + terrain_weight + crowd_weight
-                    if total_weight == 0: total_weight = 1.0
-                    
+                    st.markdown("#### 📡 Visualized Risk Distribution Share Graph")
                     live_shares = {
-                        "🌧️ Live Weather Conditions": round((weather_weight / total_weight) * 100, 1),
-                        "⛰️ Local Mountain & Terrain Factors": round((terrain_weight / total_weight) * 100, 1),
-                        "🧑‍🤝‍🧑 Tourist Traffic & Crowd Baseline": round((crowd_weight / total_weight) * 100, 1)
+                        "🌧️ Live Weather Conditions": w_pct,
+                        "⛰️ Local Mountain & Terrain Factors": t_pct,
+                        "🧑‍🤝‍🧑 Tourist Traffic & Crowd Baseline": c_pct
                     }
-                    
                     share_df = pd.DataFrame(list(live_shares.items()), columns=["Risk Driver Group", "Influence Share (%)"])
                     st.bar_chart(share_df.set_index("Risk Driver Group"), horizontal=True)
                     st.success("✨ Weather data is actively synced with current satellite updates." if not is_test_mode else "🧪 Simulation Mode: Critical structural stress weights applied.")
@@ -397,7 +424,7 @@ elif app_view == "📊 Travel Data Analytics":
         st.sidebar.success("🟢 Analytics Core Online")
     else:
         st.sidebar.error("🔴 Analytics Core Offline")
-    st.sidebar.sidebar_info = st.sidebar.info("🔓 Open Access Mode: Currently reviewing live cloud logs and accuracy checks.")
+    st.sidebar.info("🔓 Open Access Mode: Currently reviewing live cloud logs and accuracy checks.")
 
     st.header("⚡ Live Cloud Spreadsheet Summary & User Traffic Trends")
     
