@@ -84,16 +84,15 @@ DEFAULT_PROFILE = {
 # LIVE METEOROLOGICAL NETWORK UTILITY
 # =====================================================================
 # =====================================================================
-# LIVE METEOROLOGICAL NETWORK UTILITY
+# LIVE METEOROLOGICAL NETWORK UTILITY (FORTIFIED)
 # =====================================================================
 def fetch_real_time_weather(lat: float, lon: float) -> dict:
     """
     Queries Open-Meteo global tracking array for live surface telemetry.
-    Returns parsed dictionary parameters or None upon request timeout.
+    Sanitizes all outputs to completely eliminate NaN injection errors.
     """
     try:
-        # We ask for current temp/wind, but DAILY total precipitation to calculate real travel risk!
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,wind_speed_10m&daily=precipitation_sum&timezone=auto&forecast_days=1"
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,precipitation,wind_speed_10m&daily=precipitation_sum&timezone=auto&forecast_days=1"
         response = requests.get(url, timeout=6)
         
         if response.status_code == 200:
@@ -101,20 +100,32 @@ def fetch_real_time_weather(lat: float, lon: float) -> dict:
             current_data = data.get("current", {})
             daily_data = data.get("daily", {})
             
-            # Extract the total accumulated rain for today safely
-            total_daily_rain = 0.0
+            # 1. Parse Rainfall safely from daily totals or fallback to current precipitation snapshot
+            rain_val = 0.0
             if "precipitation_sum" in daily_data and len(daily_data["precipitation_sum"]) > 0:
-                # Some API returns might have 'None' if the day just rolled over, so we catch it
-                val = daily_data["precipitation_sum"][0]
-                total_daily_rain = float(val) if val is not None else 0.0
+                rain_val = daily_data["precipitation_sum"][0]
+            if rain_val is None or np.isnan(float(rain_val)):
+                rain_val = current_data.get("precipitation", 0.0)
+                
+            # Final sanity fallback check for rain
+            clean_rain = float(rain_val) if (rain_val is not None and not np.isnan(float(rain_val))) else 0.0
+            
+            # 2. Parse Temperature safely
+            temp_val = current_data.get("temperature_2m", 20.0)
+            clean_temp = float(temp_val) if (temp_val is not None and not np.isnan(float(temp_val))) else 20.0
+            
+            # 3. Parse Wind Speed safely
+            wind_val = current_data.get("wind_speed_10m", 10.0)
+            clean_wind = float(wind_val) if (wind_val is not None and not np.isnan(float(wind_val))) else 10.0
 
             return {
-                "rain": total_daily_rain,
-                "temp_max": float(current_data.get("temperature_2m", 20.0)),
-                "wind_speed": float(current_data.get("wind_speed_10m", 10.0))
+                "rain": clean_rain,
+                "temp_max": clean_temp,
+                "wind_speed": clean_wind
             }
+            
     except Exception as network_err:
-        logging.warning(f"⚠️ Live API connection dropped. Reverting to regional simulation: {network_err}")
+        logging.warning(f"⚠️ Live API connection dropped or failed parsing. Reverting to simulation: {network_err}")
     return None
 
 
