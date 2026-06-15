@@ -2,9 +2,7 @@
 import random
 import logging
 
-# =====================================================================
-# PROBLEM 2 FIX: EXTRACTED CONFIGURATION THRESHOLDS
-# =====================================================================
+# Extracted configuration thresholds
 THRESHOLDS = {
     "rain": {
         "moderate": 15.0,
@@ -22,9 +20,7 @@ THRESHOLDS = {
     }
 }
 
-# =====================================================================
-# PROBLEM 1 & 7 FIX: RANDOMIZED SEMANTIC LIBRARY WITH HIGH-QUALITY WORDING
-# =====================================================================
+# Randomized semantic library with high-quality wording
 SEMANTIC_LIBRARY = {
     "weather": {
         "light_rain": [
@@ -129,9 +125,7 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
     non-repetitive, production-grade diagnostic safety summary framework.
     """
     try:
-        # =====================================================================
-        # PROBLEM 6 FIX: SAFE FEATURING DICTIONARY HYDRATION WITH TYPING
-        # =====================================================================
+        # Safe feature hydration
         safe_features = {
             "rain": float(features.get("rain", 0.0)),
             "elevation": float(features.get("elevation", 0.0)),
@@ -142,8 +136,20 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
         }
 
         # =====================================================================
-        # PROBLEM 2 FIX: CONDITIONS EVALUATED VIA CONFIG MATRIX
+        # Bug Fix: Soft Substring Normalization Engine
         # =====================================================================
+        tier_clean = str(risk_tier).lower()
+        if "minimal" in tier_clean:
+            mapped_tier = "Minimal"
+        elif "low" in tier_clean:
+            mapped_tier = "Low"
+        elif "moderate" in tier_clean:
+            mapped_tier = "Moderate"
+        elif "elevated" in tier_clean or "severe" in tier_clean:
+            mapped_tier = "Elevated"
+        else:
+            mapped_tier = "Critical"
+
         # 1. Weather Template Evaluation
         if safe_features["rain"] >= THRESHOLDS["rain"]["heavy"]:
             weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["heavy_rain"])
@@ -152,7 +158,7 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
         else:
             weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["light_rain"])
 
-        # 2. PROBLEM 4 FIX: AMBIENT TEMPERATURE COMPONENT EVALUATION
+        # 2. Temperature Component Evaluation
         if safe_features["temp_max"] <= THRESHOLDS["temperature"]["cold"]:
             temp_txt = random.choice(SEMANTIC_LIBRARY["temperature"]["cold"])
         elif safe_features["temp_max"] >= THRESHOLDS["temperature"]["hot"]:
@@ -174,28 +180,28 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
         else:
             transport_txt = random.choice(SEMANTIC_LIBRARY["transport"]["normal"])
 
-        # 5. Risk Interpretation & Advisory Pick
-        interp_txt = random.choice(SEMANTIC_LIBRARY["interpretation"].get(risk_tier, SEMANTIC_LIBRARY["interpretation"]["Moderate"]))
-        advice_txt = random.choice(SEMANTIC_LIBRARY["advice"].get(risk_tier, SEMANTIC_LIBRARY["advice"]["Moderate"]))
+        # 5. Risk Interpretation & Advisory Pick via mapped_tier
+        interp_txt = random.choice(SEMANTIC_LIBRARY["interpretation"][mapped_tier])
+        advice_txt = random.choice(SEMANTIC_LIBRARY["advice"][mapped_tier])
 
         # =====================================================================
-        # PRODUCTION LAYOUT BUILD: STRUCTURED COMPONENT SYNTHESIS
+        # Structural Component Synthesis Build
         # =====================================================================
-        # Phase A: Dynamic Executive Summary Core
-        if risk_tier in ["Minimal", "Low"]:
-            exec_summary = f"Route metrics indicate stable and clean transit conditions across the {safe_features['resolved_name']} corridor."
-        elif risk_tier in ["Moderate", "Elevated"]:
+        # Dynamic Executive Summary Core using mapped_tier
+        if mapped_tier in ["Minimal", "Low"]:
+            exec_summary = f"Route metrics indicate highly stable and clean transit conditions across the {safe_features['resolved_name']} corridor."
+        elif mapped_tier in ["Moderate", "Elevated"]:
             primary_cause = "precipitation accumulation" if safe_features["rain"] > 15 else "topographical layout complexities"
             exec_summary = f"Increased caution required. Active {primary_cause} is currently elevating track friction constraints."
         else:
             exec_summary = f"🚨 HIGH RISK DETECTED. Critical environmental threats are compromising safety boundaries along this corridor."
 
-        # Phase B: Detailed Semantic Analysis Text Compilation
+        # Detailed Semantic Analysis Text Compilation
         detailed_analysis = " ".join([weather_txt, temp_txt, terrain_txt, transport_txt, interp_txt])
         formatted_analysis = detailed_analysis.format(**safe_features)
         formatted_advice = advice_txt.format(**safe_features)
 
-        # Phase C: PROBLEM 3 FIX: EXPLICIT RISK FACTOR ATTRIBUTION EXPLAINABILITY
+        # Risk Factor Attribution list
         drivers_list = []
         if safe_features["rain"] > 0:
             drivers_list.append(f"   * 🌧️ Precipitation Runoff: {safe_features['rain']:.1f} mm")
@@ -210,7 +216,7 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
 
         # Assemble the clean architectural layout string
         final_markdown_block = (
-            f"### 🚗 AI Risk Profile: **{risk_tier} Range**\n\n"
+            f"### 🚗 AI Risk Profile: **{mapped_tier} Range**\n\n"
             f"**1. Executive Summary:**\n"
             f"_{exec_summary}_\n\n"
             f"**2. Detailed System Analysis Report:**\n"
@@ -223,13 +229,6 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
         
         return final_markdown_block
 
-    # =====================================================================
-    # PROBLEM 5 FIX: TARGETED TYPE CONVERSION AND KEY MISMATCH EXCEPTIONS
-    # =====================================================================
     except (KeyError, ValueError) as err:
         logging.error(f"❌ Structured key formatting mismatch in summary pipeline: {err}")
-        return (
-            "### 📊 Route Metrics Attenuation Analysis\n"
-            "System telemetry has been securely pushed to your cloud ledger. "
-            "Structural mapping variables are reloading inside your memory space. Please refresh shortly."
-        )
+        return "### 📊 Route Metrics Attenuation Analysis active."
