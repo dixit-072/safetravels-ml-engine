@@ -159,6 +159,4 @@ App will open at: `http://localhost:8501`
 
 Built by **Dixit Sharma** — Data Analyst & ML Engineer based in Himachal Pradesh, India.
 
-- 🔗 [LinkedIn](https://www.linkedin.com/in/dixit-data-analyst)
-- 💻 [GitHub](https://github.com/dixit-072)
-- 📊 [Portfolio / RAG Analytics Pipeline](https://dixit-rag-analytics.streamlit.app)
+
