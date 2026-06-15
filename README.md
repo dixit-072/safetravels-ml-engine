@@ -1,110 +1,164 @@
-# 🚗 SafeTravels AI: Live Route Risk Prediction Engine
+# 🚗 SafeTravels AI — Route Risk Prediction Engine
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.25+-FF4B4B.svg)](https://streamlit.io/)
 [![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-Machine_Learning-F7931E.svg)](https://scikit-learn.org/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Open%20App-brightgreen)](https://dixit-072-safetravels-ml-engine-frontendapp-streamlit-lzmyho.streamlit.app/)
 
-SafeTravels AI is an end-to-end Machine Learning pipeline and interactive transit tracking engine designed to compute real-time environmental risk scores for travelers. By fusing live, localized meteorological telemetry with geographical terrain arrays, this engine handles microclimate shifts and dynamically outputs a deterministic hazard classification profile (0-100%).
+**SafeTravels AI** is a full-stack machine learning project that predicts real-time travel risk scores based on live weather data and regional terrain. A user enters a destination, and the system fetches live weather from the Open-Meteo API, processes it through a trained ML model, and returns a hazard probability (0–100%) with travel recommendations.
 
-### 🚀 Live Production Dashboard
-> **[Experience the Live Interactive Dashboard Here](https://dixit-072-safetravels-ml-engine-frontendapp-streamlit-lzmyho.streamlit.app/)**
+> 🔗 **[Try the Live App Here](https://dixit-072-safetravels-ml-engine-frontendapp-streamlit-lzmyho.streamlit.app/)**
+
+> ⚠️ **Note on Cold Start:** The backend is hosted on Render's free tier. If the app hasn't been used for 15+ minutes, the first prediction may take 30–45 seconds to load while the server wakes up. Subsequent requests are fast.
 
 ---
 
-## 🧠 System Architecture Matrix
+## 📸 Screenshots
 
-The platform is engineered using a decoupled microservice framework, isolating the underlying compute/inference nodes from the client-facing display suite to optimize uptime, limit resource consumption, and ensure highly available API routing.
+> *(Add a screenshot of the Streamlit dashboard here)*
 
-```text
-       [ Client Dashboard Interface ] (Streamlit Cloud Instance)
-                     │
-                     ▼ (Secure HTTP POST Request JSON Payload)
-         [ API Router Gateway Hub ] (FastAPI Endpoint Core)
-                     │
-        ┌────────────┴────────────┐
-        ▼                         ▼
- [ Open-Meteo API Network ]  [ ML Inference Engine Node ]
- (Total Daily Rain Forecast)  (Scikit-Learn Classifier State)
+---
+
+## 🧠 How It Works
+
+The project uses a **decoupled architecture** — the ML backend and the frontend run as separate services:
+
+```
+[ Streamlit Frontend ]  (Streamlit Community Cloud)
+         │
+         ▼  HTTP POST (JSON payload)
+[ FastAPI Backend ]     (Render Free Tier)
+         │
+    ┌────┴────┐
+    ▼          ▼
+[ Open-Meteo  ] [ ML Model ]
+  Weather API    (Scikit-Learn .pkl)
 ```
 
-1. **The Machine Learning Core (FastAPI Backend):** Deserializes pre-trained classification weights and matching dataframe structural schemas from binary memory dumps (`.pkl`), ingests pipeline requests, and serves low-latency probabilistic evaluations.
-2. **The Global Telemetry Bridge:** Integrates with the **Open-Meteo Global Array** via geographic tracking coordinates to capture comprehensive daily atmospheric shifts rather than hyper-localized instant cloudburst snapshots.
-3. **The User UI Node (Streamlit Frontend):** Evaluates backend payload signals and maps raw numbers to intuitive hazard gauges, custom alerts, and real-time safe travel recommendations.
+**Step-by-step flow:**
+1. User enters a destination city in the Streamlit app
+2. Backend fetches **live daily weather** (precipitation, wind, temperature) from Open-Meteo API
+3. The terrain type for the city (e.g., mountain pass vs plains) is looked up and used as a feature
+4. The trained Scikit-Learn classifier returns a **risk probability score**
+5. Streamlit displays the score with a gauge, color-coded alert, and travel recommendation
 
 ---
 
-## 🚀 Core Engineering Features
+## 📊 Sample Prediction Output
 
-* **Daily Accumulated Telemetry Filters:** Structured to fetch the entire day's integrated `precipitation_sum` loop instead of standard current rain metrics, ensuring mountain monsoons and localized cloudburst developments are fully represented inside the predictive model.
-* **Geographical Microclimate Scaling:** Dynamically parses distinct regional terrain thresholds (e.g., *High-Altitude Mountain Pass* vs. *Semi-Arid Plains*), injecting mathematical elevation penalties directly into the tracking tensor arrays.
-* **Fault-Tolerant Parameter Sanitization:** Hardened using robust mathematical fallback pipelines. If the external satellite tracking grid transmits null, unaligned, or missing telemetry variables, the backend instantly intercepts the error code and defaults values cleanly to prevent UI failure.
-* **Deterministic Tracking Initialization:** Seeds NumPy statistical generators dynamically based on combined string combinations of user destinations and queried calendar dates, ensuring absolute evaluation reproducibility across multiple sessions.
+For a destination like **Shimla** on a rainy day:
 
----
-
-## 📊 End-to-End Execution Sample Data
-
-When a user executes a route calculation for a destination like **Shimla**, the system handles parsing automatically:
-
-| Log Parameter | Incoming Telemetry Value | Backend Handling & Transformation |
-| :--- | :--- | :--- |
-| **Topography Type** | ⛰️ High-Altitude Mountain Pass | Evaluates localized elevation thresholds (2,100m–2,300m) |
-| **Rain Metrics** | `12.44 mm` (Daily Forecast Sum) | Safely mapped to input features to simulate wet road adhesion loss |
-| **Wind Velocity** | `12.6 km/h` | Extracted directly via live current API data telemetry frames |
-| **Thermal Profile**| `5.0 °C` | Passed to analyze potential black-ice risk indices |
-| **Pipeline Risk** | **95.0% Risk Probability Score** | **Output Status: Critical Hazard 🚨 (Deploy Emergency Advisories)** |
+| Feature | Value | Notes |
+|---|---|---|
+| Terrain Type | ⛰️ High-Altitude Mountain Pass | Elevation ~2,200m |
+| Daily Rainfall | 12.44 mm | Fetched from Open-Meteo |
+| Wind Speed | 12.6 km/h | Live current data |
+| Temperature | 5.0°C | Black-ice risk range |
+| **Risk Score** | **95% 🚨** | **Critical — avoid travel** |
 
 ---
 
-## 🛠️ Technology Stack Specifications
+## 🛠️ Tech Stack
 
-* **Machine Learning & Analysis Suite:** `Scikit-Learn`, `Pandas`, `NumPy`, `Pickle`
-* **Backend Application Routing:** `FastAPI`, `Uvicorn`, `Pydantic`, `Requests`
-* **Interactive Frontend Layout:** `Streamlit`
-* **Cloud Architecture Hosts:** `Render Cluster` (Backend API Engine), `Streamlit Community Cloud` (UI Web Hub)
+| Layer | Tools |
+|---|---|
+| ML / Data | Scikit-Learn, Pandas, NumPy, Pickle |
+| Backend API | FastAPI, Uvicorn, Pydantic, Requests |
+| Frontend | Streamlit |
+| Weather Data | Open-Meteo API (free, no key needed) |
+| Hosting | Render (backend), Streamlit Community Cloud (frontend) |
 
 ---
 
-## 💻 Local Installation & Repository Deployment
+## 📁 Project Structure
 
-Follow these commands to deploy and configure the complete architecture environment locally on your desktop machine:
+```
+safetravels-ml-engine/
+├── backend/              # FastAPI app — ML inference + weather fetching
+├── frontend/             # Streamlit app — UI and API calls
+├── notebooks/            # EDA, feature engineering, model training
+├── models/               # Saved .pkl model and scaler files
+├── data/                 # Training dataset
+├── src/                  # Shared utility functions
+├── analysis/             # Exploratory analysis scripts
+├── store_user_query/     # Logs user queries (for future analytics)
+├── tests/                # Unit tests
+├── requirements.txt
+├── run_pipeline.bat      # One-click local setup (Windows)
+└── README.md
+```
 
-### 1. Repository Setup & Clone
+---
+
+## 💻 Local Setup
+
+### 1. Clone the repo
+
 ```bash
-git clone [https://github.com/Your-Username/Your-Repository-Name.git](https://github.com/Your-Username/Your-Repository-Name.git)
-cd Your-Repository-Name
+git clone https://github.com/dixit-072/safetravels-ml-engine.git
+cd safetravels-ml-engine
 ```
 
-### 2. Environment Activation
+### 2. Create and activate a virtual environment
+
 ```bash
 python -m venv venv
-# On Windows Operating Systems use:
+
+# Windows
 venv\Scripts\activate
-# On macOS / Linux Operating Systems use:
+
+# macOS / Linux
 source venv/bin/activate
 ```
 
-### 3. Dependency Compilation
+### 3. Install dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Booting the FastAPI Inference Server
+### 4. Start the FastAPI backend
+
 ```bash
+cd backend
 uvicorn routes:app --reload --port 8000
 ```
 
-### 5. Launching the Streamlit Visual Dashboard (In a Parallel Terminal Instance)
+Backend will be running at: `http://localhost:8000`
+
+### 5. Start the Streamlit frontend (in a new terminal)
+
 ```bash
+cd frontend
 streamlit run app_streamlit.py
 ```
 
----
-
-## 📈 Future Enhancement Map
-* **Dynamic Global Geocoding:** Migrating from hardcoded topographical dictionaries to a live OpenStreetMap Geocoding API to dynamically process altitude and coordinates for any city globally.
-* **Managed Database Tracking Layers:** Transitioning local session state tracking to a persistent cloud database to capture historical route risk trends over time.
+App will open at: `http://localhost:8501`
 
 ---
-*Developed by **Dixit Sharma** — Data Analyst & Machine Learning Engineer. Let's connect on [LinkedIn](https://www.linkedin.com/in/dixit-data-analyst)!*
+
+## ✅ Key Engineering Decisions
+
+- **Daily precipitation instead of current rain** — mountain cloudbursts build up over hours. Using `precipitation_sum` (total daily rainfall) gives a more accurate risk signal than a snapshot of current rain.
+- **Terrain-based elevation penalties** — flat plains and mountain passes behave differently. The model uses terrain type as a categorical feature to account for this.
+- **Deterministic predictions for same inputs** — NumPy seeds are set based on city name + date, so the same query always returns the same result, useful for testing and reproducibility.
+- **Null-safe weather parsing** — if Open-Meteo returns missing fields, the backend falls back to safe defaults instead of crashing the UI.
+
+---
+
+## 🗺️ Planned Improvements
+
+- **Live geocoding** — replace the hardcoded city-terrain dictionary with OpenStreetMap/Nominatim API to support any global city
+- **Historical risk tracking** — store past queries in a database to show risk trends over time
+- **Backend migration into Streamlit** — eliminate the separate FastAPI server to remove the cold start problem entirely (free fix)
+
+---
+
+## 👤 About
+
+Built by **Dixit Sharma** — Data Analyst & ML Engineer based in Himachal Pradesh, India.
+
+- 🔗 [LinkedIn](https://www.linkedin.com/in/dixit-data-analyst)
+- 💻 [GitHub](https://github.com/dixit-072)
+- 📊 [Portfolio / RAG Analytics Pipeline](https://dixit-rag-analytics.streamlit.app)
