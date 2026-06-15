@@ -52,29 +52,41 @@ st.sidebar.markdown("---")
 def _get_service_account_info():
     """Smart credential engine mapped to look for individual environment tokens or st.secrets directly."""
     try:
-        # Helper logic to capture cloud variables or local system variables fluidly
         def get_val(key_name):
             if hasattr(st, "secrets") and key_name in st.secrets:
                 return st.secrets[key_name]
             return os.getenv(key_name, "")
 
-        # Target verification check to make sure variables are flowing inside the stack
         target_project = get_val("GCP_PROJECT_ID")
         if not target_project:
             return None
 
-        raw_key = get_val("GCP_PRIVATE_KEY")
-        # Ensure the key opens and closes with perfect standard line breaks
-        if not raw_key.startswith("-----BEGIN PRIVATE KEY-----"):
+        # Clean and isolate the raw private key string
+        raw_key = get_val("GCP_PRIVATE_KEY").strip()
+        
+        # 🛠️ STAGE 1 REPAIR: Strip out accidental enclosing quotes if present
+        if raw_key.startswith('"') and raw_key.endswith('"'):
+            raw_key = raw_key[1:-1]
+        if raw_key.startswith("'") and raw_key.endswith("'"):
+            raw_key = raw_key[1:-1]
+
+        # 🛠️ STAGE 2 REPAIR: Handle raw line breaks and literal string literal escapes fluidly
+        raw_key = raw_key.replace("\\n", "\n")
+        
+        # 🛠️ STAGE 3 REPAIR: Ensure standard cryptographic header boundaries match PEM layout rules
+        if "-----BEGIN PRIVATE KEY-----" not in raw_key:
             raw_key = "-----BEGIN PRIVATE KEY-----\n" + raw_key
-        if not raw_key.endswith("-----END PRIVATE KEY-----"):
+        if "-----END PRIVATE KEY-----" not in raw_key:
             raw_key = raw_key + "\n-----END PRIVATE KEY-----"
+            
+        # Clean up double line break overlaps safely
+        raw_key = raw_key.replace("-----\n\n", "-----\n").replace("\n\n-----", "\n-----")
 
         return {
             "type": get_val("GCP_TYPE"),
             "project_id": target_project,
             "private_key_id": get_val("GCP_PRIVATE_KEY_ID"),
-            "private_key": raw_key.replace("\\n", "\n"),
+            "private_key": raw_key,
             "client_email": get_val("GCP_CLIENT_EMAIL"),
             "client_id": get_val("GCP_CLIENT_ID"),
             "auth_uri": get_val("GCP_AUTH_URI"),
