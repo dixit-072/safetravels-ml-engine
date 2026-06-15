@@ -50,24 +50,24 @@ st.sidebar.markdown("---")
 # =====================================================================
 
 def _get_service_account_info():
-    """Builds the credential dictionary from secrets with extra validation."""
-    if not st or not hasattr(st, "secrets") or "GCP_JSON" not in st.secrets:
-        logging.error("Secrets missing GCP_JSON")
-        return None
-    
+    """Builds the dictionary from individual secret keys (No JSON syntax in the box)."""
     try:
-        creds_json = st.secrets["GCP_JSON"]
-        # If it's already a dict, return it. If it's a string, load it.
-        if isinstance(creds_json, str):
-            creds_dict = json.loads(creds_json)
-        else:
-            creds_dict = creds_json
-            
-        # Log keys found to help us debug if it's missing fields
-        logging.info(f"Loaded credentials keys: {list(creds_dict.keys())}")
-        return creds_dict
+        # We will use simple, flat keys now
+        return {
+            "type": st.secrets["GCP_TYPE"],
+            "project_id": st.secrets["GCP_PROJECT_ID"],
+            "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
+            "private_key": st.secrets["GCP_PRIVATE_KEY"].replace("\\n", "\n"),
+            "client_email": st.secrets["GCP_CLIENT_EMAIL"],
+            "client_id": st.secrets["GCP_CLIENT_ID"],
+            "auth_uri": st.secrets["GCP_AUTH_URI"],
+            "token_uri": st.secrets["GCP_TOKEN_URI"],
+            "auth_provider_x509_cert_url": st.secrets["GCP_AUTH_PROVIDER_X509_CERT_URL"],
+            "client_x509_cert_url": st.secrets["GCP_CLIENT_X509_CERT_URL"],
+            "universe_domain": "googleapis.com"
+        }
     except Exception as e:
-        logging.error(f"Error parsing GCP_JSON: {e}")
+        print(f"✗ Credential build failed: {e}")
         return None
 
 def get_gspread_client():
