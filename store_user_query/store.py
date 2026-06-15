@@ -6,27 +6,40 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 
 def get_creds():
-    """Builds the credential dictionary from individual secret keys."""
-    # Check if we are in cloud (using individual secret keys)
-    if hasattr(st, "secrets") and "GCP_TYPE" in st.secrets:
-        return {
-            "type": st.secrets["GCP_TYPE"],
-            "project_id": st.secrets["GCP_PROJECT_ID"],
-            "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": st.secrets["GCP_PRIVATE_KEY"].replace("\\n", "\n"),
-            "client_email": st.secrets["GCP_CLIENT_EMAIL"],
-            "client_id": st.secrets["GCP_CLIENT_ID"],
-            "auth_uri": st.secrets["GCP_AUTH_URI"],
-            "token_uri": st.secrets["GCP_TOKEN_URI"],
-            "auth_provider_x509_cert_url": st.secrets["GCP_AUTH_PROVIDER_X509_CERT_URL"],
-            "client_x509_cert_url": st.secrets["GCP_CLIENT_X509_CERT_URL"],
-            "universe_domain": "googleapis.com"
-        }
+    """Smart loader: uses Cloud Secret if present, otherwise local file."""
     
-    # Local Mode fallback
+    # 1. Cloud Mode (Streamlit Secrets)
+    if hasattr(st, "secrets") and "GCP_TYPE" in st.secrets:
+        try:
+            raw_key = st.secrets["GCP_PRIVATE_KEY"]
+            if not raw_key.startswith("-----BEGIN PRIVATE KEY-----"):
+                raw_key = "-----BEGIN PRIVATE KEY-----\n" + raw_key
+            if not raw_key.endswith("-----END PRIVATE KEY-----"):
+                raw_key = raw_key + "\n-----END PRIVATE KEY-----"
+
+            return {
+                "type": st.secrets["GCP_TYPE"],
+                "project_id": st.secrets["GCP_PROJECT_ID"],
+                "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
+                "private_key": raw_key.replace("\\n", "\n"),
+                "client_email": st.secrets["GCP_CLIENT_EMAIL"],
+                "client_id": st.secrets["GCP_CLIENT_ID"],
+                "auth_uri": st.secrets["GCP_AUTH_URI"],
+                "token_uri": st.secrets["GCP_TOKEN_URI"],
+                "auth_provider_x509_cert_url": st.secrets["GCP_AUTH_PROVIDER_X509_CERT_URL"],
+                "client_x509_cert_url": st.secrets["GCP_CLIENT_X509_CERT_URL"]
+            }
+        except Exception as e:
+            print(f"✗ Failed to build cloud creds: {e}")
+    
+    # 2. Local Mode fallback (Only runs if cloud mode fails or isn't present)
     if os.path.exists("google_creds.json"):
-        with open("google_creds.json") as f:
-            return json.load(f)
+        try:
+            with open("google_creds.json") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"✗ Failed to read local creds: {e}")
+            
     return None
 
 class GoogleSheetsDatabase:
