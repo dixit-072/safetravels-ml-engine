@@ -2,130 +2,99 @@
 import random
 import logging
 
-# Extracted configuration thresholds
 THRESHOLDS = {
-    "rain": {
-        "moderate": 15.0,
-        "heavy": 50.0
-    },
-    "wind": {
-        "high": 35.0
-    },
-    "elevation": {
-        "mountain": 1000.0
-    },
-    "temperature": {
-        "cold": 10.0,
-        "hot": 35.0
-    }
+    "rain": {"moderate": 15.0, "heavy": 50.0},
+    "wind": {"high": 35.0},
+    "elevation": {"mountain": 1000.0},
+    "temperature": {"cold": 10.0, "hot": 35.0}
 }
 
-# Randomized semantic library with high-quality wording
 SEMANTIC_LIBRARY = {
     "weather": {
         "light_rain": [
-            "Light rainfall ({rain:.1f} mm) is expected along the route corridor.",
-            "Baseline precipitation levels ({rain:.1f} mm) are projected across this segment.",
-            "Minor atmospheric dampening ({rain:.1f} mm) is indicated along the roadway."
+            "Expect a little light rain ({rain:.1f} mm) along the way.",
+            "Weather is mostly clear with minor damp patches ({rain:.1f} mm).",
+            "Baseline conditions look good with light drizzle ({rain:.1f} mm)."
         ],
         "moderate_rain": [
-            "Moderate precipitation ({rain:.1f} mm) may impact traction margins and roadway visibility.",
-            "Steady rainfall accumulation ({rain:.1f} mm) is likely to affect pavement grip thresholds.",
-            "Sustained moisture levels ({rain:.1f} mm) require careful braking adjustments across transit sectors."
+            "Steady rain ({rain:.1f} mm) is falling. Roads will be slick.",
+            "Moderate rainfall ({rain:.1f} mm) is affecting visibility.",
+            "Expect running surface water from active rain ({rain:.1f} mm)."
         ],
         "heavy_rain": [
-            "⚠️ Heavy rainfall ({rain:.1f} mm) is actively causing significant road surface saturation.",
-            "⚠️ Intense downpours totaling {rain:.1f} mm are generating elevated surface runoff and severe drainage strain.",
-            "⚠️ Persistent cloudburst activity ({rain:.1f} mm) is significantly reducing visibility limits along the corridor."
+            "⚠️ Heavy downpours ({rain:.1f} mm) are causing major pooling on the roads.",
+            "⚠️ Intense rainfall ({rain:.1f} mm) is actively flooding low drainage spots.",
+            "⚠️ Torrential cloudbursts ({rain:.1f} mm) have dropped road visibility to near-zero."
         ]
     },
     "temperature": {
         "cold": [
-            "Low thermal readings ({temp_max:.1f}°C) introduce distinct risks of surface freezing or localized black ice.",
-            "Near-freezing temperatures ({temp_max:.1f}°C) mandate close monitoring for sudden ice adhesion patches."
+            "It is cold ({temp_max:.1f}°C)—watch out for sudden patches of frost or black ice.",
+            "Temperatures are near freezing ({temp_max:.1f}°C). Drive cautiously over bridges."
         ],
         "hot": [
-            "Extreme thermal exposure ({temp_max:.1f}°C) increases component stress and tire pressure distortion variables.",
-            "Elevated temperature readings ({temp_max:.1f}°C) may accelerate engine load stress across long climbs."
+            "High heat ({temp_max:.1f}°C) is putting extra stress on car engines and tires.",
+            "Extreme heat alert ({temp_max:.1f}°C). Check your coolant levels."
         ],
         "normal": [
-            "Ambient temperatures ({temp_max:.1f}°C) remain within stable operating equilibriums.",
-            "Thermal parameters ({temp_max:.1f}°C) indicate a standard, non-hazardous ambient window."
+            "Temperatures are comfortable ({temp_max:.1f}°C).",
+            "Thermal conditions are standard ({temp_max:.1f}°C)."
         ]
     },
     "terrain": {
         "mountain": [
-            "The steep, high-altitude mountainous terrain ({elevation:.0f} m) inherently upgrades systemic vulnerability to localized slope instability.",
-            "Navigating this high-elevation pass ({elevation:.0f} m) increases exposures to sudden valley visibility drops and rockfalls."
+            "You are crossing a high mountain pass ({elevation:.0f} m) with steep blind curves.",
+            "This high-altitude zone ({elevation:.0f} m) is prone to rockfalls and valley fog."
         ],
         "plain": [
-            "Topographical layout metrics indicate stable, low-elevation plain routes with minimal terrain penalty offsets.",
-            "The regional terrain profile remains flat and stable, presenting zero altitude-induced structural constraints."
+            "The route lies across flat, easy plains territory.",
+            "Terrain profile is completely flat and stable."
         ]
     },
     "transport": {
         "high_wind": [
-            "Strong crosswind gusts clocking up to {wind_speed:.1f} km/h require alert steering adjustments.",
-            "High aerodynamic velocities ({wind_speed:.1f} km/h) are actively impacting high-profile vehicle handling dynamics."
+            "Strong crosswinds ({wind_speed:.1f} km/h) are actively buffeting high-profile vehicles.",
+            "Gusty wind warnings ({wind_speed:.1f} km/h) require a firm grip on the steering wheel."
         ],
         "normal": [
-            "Wind velocities continue within safe, baseline operational thresholds.",
-            "Aerodynamic movement parameters show non-disruptive, calm velocity vectors along the track."
+            "Winds are calm and well within safe limits.",
+            "Air movement along the corridor is normal."
         ]
     },
     "interpretation": {
         "Minimal": [
-            "Current environmental indicators suggest stable travel profiles with a clear hazard index of {risk_score:.1f}/100.",
-            "System analytics reflect uniform baseline routing security, maintaining an optimal score of {risk_score:.1f}/100."
+            "The route is entirely clear and safe (Hazard Index: {risk_score:.0f}/100).",
+            "All sensors show optimal, stress-free travel tracks (Hazard Index: {risk_score:.0f}/100)."
         ],
         "Low": [
-            "Conditions appear manageable, displaying a minor routing friction index of {risk_score:.1f}/100.",
-            "Isolated local variables register minor shifts, settling at a stable risk index of {risk_score:.1f}/100."
+            "Minor local weather shifts are present, but it's a routine drive (Hazard Index: {risk_score:.0f}/100).",
+            "Conditions are comfortable with minimal layout friction (Hazard Index: {risk_score:.0f}/100)."
         ],
         "Moderate": [
-            "With a calculated safety index of {risk_score:.1f}/100, localized hazards dictate structural defensive driving parameters.",
-            "Environmental friction models converge at a hazard index of {risk_score:.1f}/100, requiring active situational monitoring."
+            "Active elements mean you need to stay alert (Hazard Index: {risk_score:.0f}/100).",
+            "Friction checks suggest slowing down around corners (Hazard Index: {risk_score:.0f}/100)."
         ],
         "Elevated": [
-            "Heightened environmental risk factors have converged to drive the overall route safety index up to {risk_score:.1f}/100.",
-            "Accelerated risk factors are compounding system strains, positioning the hazard metric at a demanding {risk_score:.1f}/100."
+            "Compounding risk factors are driving up stress levels across the track (Hazard Index: {risk_score:.0f}/100).",
+            "Conditions are demanding. Traffic delays and lane restrictions are likely (Hazard Index: {risk_score:.0f}/100)."
         ],
         "Critical": [
-            "🚨 CRITICAL WARNING: Multiple environmental risk indicators have simultaneously entered critical ranges, producing a severe hazard score of {risk_score:.1f}/100.",
-            "🚨 SYSTEM ALERT: Safety envelopes have collapsed across multiple observation axes, driving the risk metric to an acute danger threshold of {risk_score:.1f}/100."
+            "🚨 CRITICAL WARNING: Multiple structural hazards have maxed out safe limits (Hazard Index: {risk_score:.0f}/100).",
+            "🚨 SAFETY ENVELOPE COLLAPSED: Severe combined danger vectors across the route (Hazard Index: {risk_score:.0f}/100)."
         ]
     },
     "advice": {
-        "Minimal": [
-            "Proceed with standard travel schedules while tracking normal systemic daily logs.",
-            "Maintain standard operating itineraries. No specialized corridor precautions are necessary."
-        ],
-        "Low": [
-            "Proceed as planned while verifying active destination weather bulletins before departure.",
-            "Maintain routine transit paces. Keep standard audio advisory feeds active for updates."
-        ],
-        "Moderate": [
-            "Reduce transit velocities, extend vehicle spacing buffer zones, and avoid night-driving windows.",
-            "Exercise explicit caution across blind curves. Ensure vehicle lighting clusters are clear and active."
-        ],
-        "Elevated": [
-            "Re-evaluate travel timelines. If transit is unavoidable, systematically secure essential cargo and emergency kits.",
-            "Minimize unnecessary exposure. Restructure routing paths to avoid isolated single-lane passes where possible."
-        ],
-        "Critical": [
-            "Postpone all non-essential route deployments across this corridor immediately until the weather front breaks.",
-            "Abort planned departures. Secure your vehicle in safe zones and await official state highway clearing directives."
-        ]
+        "Minimal": ["Have a great trip!", "Proceed normal speed as planned."],
+        "Low": ["Check local news maps before leaving.", "Keep an eye out for standard city traffic updates."],
+        "Moderate": ["Drop your speed, extend your braking distance, and avoid night driving.", "Take curves gently."],
+        "Elevated": ["Pack an emergency kit, secure all cargo, and double-check your brakes.", "Delay trip if possible."],
+        "Critical": ["Do not drive. Postpone your trip immediately until the highway authority clears the area."]
     }
 }
 
 def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
-    """
-    Parses live route telemetry metrics and generates a highly secure,
-    non-repetitive, production-grade diagnostic safety summary framework.
-    """
+    """Compiles the telemetry into clean, snappy, short bullet points for everyday users."""
     try:
-        # Safe feature hydration
         safe_features = {
             "rain": float(features.get("rain", 0.0)),
             "elevation": float(features.get("elevation", 0.0)),
@@ -135,38 +104,22 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
             "resolved_name": str(features.get("resolved_name", "Selected Corridor"))
         }
 
-        # =====================================================================
-        # Bug Fix: Soft Substring Normalization Engine
-        # =====================================================================
         tier_clean = str(risk_tier).lower()
-        if "minimal" in tier_clean:
-            mapped_tier = "Minimal"
-        elif "low" in tier_clean:
-            mapped_tier = "Low"
-        elif "moderate" in tier_clean:
-            mapped_tier = "Moderate"
-        elif "elevated" in tier_clean or "severe" in tier_clean:
-            mapped_tier = "Elevated"
-        else:
-            mapped_tier = "Critical"
+        if "minimal" in tier_clean: mapped_tier = "Minimal"
+        elif "low" in tier_clean: mapped_tier = "Low"
+        elif "moderate" in tier_clean: mapped_tier = "Moderate"
+        elif "elevated" in tier_clean or "severe" in tier_clean: mapped_tier = "Elevated"
+        else: mapped_tier = "Critical"
 
-        # 1. Weather Template Evaluation
-        if safe_features["rain"] >= THRESHOLDS["rain"]["heavy"]:
-            weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["heavy_rain"])
-        elif safe_features["rain"] >= THRESHOLDS["rain"]["moderate"]:
-            weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["moderate_rain"])
-        else:
-            weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["light_rain"])
+        # Router Selections
+        if safe_features["rain"] >= THRESHOLDS["rain"]["heavy"]: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["heavy_rain"])
+        elif safe_features["rain"] >= THRESHOLDS["rain"]["moderate"]: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["moderate_rain"])
+        else: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["light_rain"])
 
-        # 2. Temperature Component Evaluation
-        if safe_features["temp_max"] <= THRESHOLDS["temperature"]["cold"]:
-            temp_txt = random.choice(SEMANTIC_LIBRARY["temperature"]["cold"])
-        elif safe_features["temp_max"] >= THRESHOLDS["temperature"]["hot"]:
-            temp_txt = random.choice(SEMANTIC_LIBRARY["temperature"]["hot"])
-        else:
-            temp_txt = random.choice(SEMANTIC_LIBRARY["temperature"]["normal"])
+        if safe_features["temp_max"] <= THRESHOLDS["temperature"]["cold"]: temp_txt = random.choice(SEMANTIC_LIBRARY["temperature"]["cold"])
+        elif safe_features["temp_max"] >= THRESHOLDS["temperature"]["hot"]: temp_txt = random.choice(SEMANTIC_LIBRARY["temperature"]["hot"])
+        else: temp_txt = random.choice(SEMANTIC_LIBRARY["temperature"]["normal"])
 
-        # 3. Terrain Template Evaluation
         if safe_features["elevation"] >= THRESHOLDS["elevation"]["mountain"]:
             terrain_txt = random.choice(SEMANTIC_LIBRARY["terrain"]["mountain"])
             is_mountain = True
@@ -174,61 +127,38 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
             terrain_txt = random.choice(SEMANTIC_LIBRARY["terrain"]["plain"])
             is_mountain = False
 
-        # 4. Transport Template Evaluation
-        if safe_features["wind_speed"] >= THRESHOLDS["wind"]["high"]:
-            transport_txt = random.choice(SEMANTIC_LIBRARY["transport"]["high_wind"])
-        else:
-            transport_txt = random.choice(SEMANTIC_LIBRARY["transport"]["normal"])
+        if safe_features["wind_speed"] >= THRESHOLDS["wind"]["high"]: transport_txt = random.choice(SEMANTIC_LIBRARY["transport"]["high_wind"])
+        else: transport_txt = random.choice(SEMANTIC_LIBRARY["transport"]["normal"])
 
-        # 5. Risk Interpretation & Advisory Pick via mapped_tier
         interp_txt = random.choice(SEMANTIC_LIBRARY["interpretation"][mapped_tier])
         advice_txt = random.choice(SEMANTIC_LIBRARY["advice"][mapped_tier])
 
-        # =====================================================================
-        # Structural Component Synthesis Build
-        # =====================================================================
-        # Dynamic Executive Summary Core using mapped_tier
-        if mapped_tier in ["Minimal", "Low"]:
-            exec_summary = f"Route metrics indicate highly stable and clean transit conditions across the {safe_features['resolved_name']} corridor."
-        elif mapped_tier in ["Moderate", "Elevated"]:
-            primary_cause = "precipitation accumulation" if safe_features["rain"] > 15 else "topographical layout complexities"
-            exec_summary = f"Increased caution required. Active {primary_cause} is currently elevating track friction constraints."
-        else:
-            exec_summary = f"🚨 HIGH RISK DETECTED. Critical environmental threats are compromising safety boundaries along this corridor."
+        # Executive Summary Custom String
+        if mapped_tier in ["Minimal", "Low"]: exec_summary = "Drive relaxed. Current parameters show a highly stable, smooth trip ahead."
+        elif mapped_tier in ["Moderate", "Elevated"]: exec_summary = "Drive defensively. Live weather elements are creating minor track slickness."
+        else: exec_summary = "🚨 Essential travel only. Serious weather limits are reducing road safety profiles."
 
-        # Detailed Semantic Analysis Text Compilation
-        detailed_analysis = " ".join([weather_txt, temp_txt, terrain_txt, transport_txt, interp_txt])
-        formatted_analysis = detailed_analysis.format(**safe_features)
+        # Compile and parse strings
+        formatted_analysis = f"• {weather_txt}\n• {temp_txt}\n• {terrain_txt}\n• {transport_txt}\n• {interp_txt}".format(**safe_features)
         formatted_advice = advice_txt.format(**safe_features)
 
-        # Risk Factor Attribution list
-        drivers_list = []
-        if safe_features["rain"] > 0:
-            drivers_list.append(f"   * 🌧️ Precipitation Runoff: {safe_features['rain']:.1f} mm")
-        if is_mountain:
-            drivers_list.append(f"   * ⛰️ Altimeter Slope Penalty: {safe_features['elevation']:.0f} m")
-        if safe_features["wind_speed"] > 0:
-            drivers_list.append(f"   * 💨 Crosswind Velocity Vector: {safe_features['wind_speed']:.1f} km/h")
-        if safe_features["temp_max"] <= 10.0 or safe_features["temp_max"] >= 35.0:
-            drivers_list.append(f"   * 🌡️ Thermal Variance Strain: {safe_features['temp_max']:.1f} °C")
-            
-        risk_drivers_output = "\n".join(drivers_list) if drivers_list else "   * No volatile systemic hazards identified."
+        # Risk Factor Breakdown
+        drivers = []
+        if safe_features["rain"] > 0: drivers.append(f"   * 🌧️ Rain Level: {safe_features['rain']:.1f} mm")
+        if is_mountain: drivers.append(f"   * ⛰️ Altitude: {safe_features['elevation']:.0f} m")
+        if safe_features["wind_speed"] > 0: drivers.append(f"   * 💨 Wind Speed: {safe_features['wind_speed']:.1f} km/h")
+        risk_drivers_output = "\n".join(drivers) if drivers else "   * None"
 
-        # Assemble the clean architectural layout string
+        # Final Clean Layout Assembly
         final_markdown_block = (
-            f"### 🚗 AI Risk Profile: **{mapped_tier} Range**\n\n"
-            f"**1. Executive Summary:**\n"
-            f"_{exec_summary}_\n\n"
-            f"**2. Detailed System Analysis Report:**\n"
-            f"{formatted_analysis}\n\n"
-            f"**3. Top Contributing Risk Drivers Matrix:**\n"
-            f"{risk_drivers_output}\n\n"
-            f"**4. Actionable Safety Recommendation:**\n"
-            f"👉 **{formatted_advice}**"
+            f"### 🚗 AI Safety Profile: **{mapped_tier} Risk**\n\n"
+            f"**1. Quick Summary:**\n_{exec_summary}_\n\n"
+            f"**2. Live Conditions Log:**\n{formatted_analysis}\n\n"
+            f"**3. Main Drivers:**\n{risk_drivers_output}\n\n"
+            f"**4. What you should do:**\n👉 **{formatted_advice}**"
         )
-        
         return final_markdown_block
 
     except (KeyError, ValueError) as err:
-        logging.error(f"❌ Structured key formatting mismatch in summary pipeline: {err}")
-        return "### 📊 Route Metrics Attenuation Analysis active."
+        logging.error(f"❌ Key rendering break: {err}")
+        return "### 📊 Live route metrics logged inside system files."

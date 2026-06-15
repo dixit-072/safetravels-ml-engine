@@ -347,13 +347,15 @@ if app_view == "🔮 Route Risk Checker":
                     # Generate the complete randomized markdown block from summary.py
                     generated_narrative = generate_semantic_narrative(normalized_features, tier)
 
-                    # Render the beautiful pre-built layout inside matched theme boxes
-                    if tier in ["Minimal", "Low"]:
-                        st.info(generated_narrative)
-                    elif tier in ["Moderate", "Elevated"]:
-                        st.warning(generated_narrative)
+                    # 🟢 PASTED NEW CODE HERE:
+                    tier_clean = str(tier).lower()
+
+                    if "minimal" in tier_clean or "low" in tier_clean:
+                        st.success(generated_narrative)  # Turns green for safe routes!
+                    elif "moderate" in tier_clean or "elevated" in tier_clean:
+                        st.warning(generated_narrative)  # Turns yellow for caution!
                     else:
-                        st.error(generated_narrative)
+                        st.error(generated_narrative)    # Turns red for critical hazards!
                     
                     st.write("")
                     st.metric(label="Overall Safety Risk Score (0 = Safest, 100 = Hazardous)", value=f"{score:.2f} / 100")
