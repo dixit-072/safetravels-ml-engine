@@ -46,57 +46,34 @@ st.sidebar.markdown("---")
 
 
 # =====================================================================
-# ROCK-SOLID DIRECT GSPREAD ENGINE (HEX TOKEN ENGINE - FIXED FOR FLAT KEYS)
+# FOOLPROOF BASE64 DECODING ENGINE
 # =====================================================================
 
 def _get_service_account_info():
-    """Smart credential engine mapped to look for individual environment tokens or st.secrets directly."""
+    """Decodes a clean Base64 service account credential block in memory."""
     try:
-        def get_val(key_name):
-            if hasattr(st, "secrets") and key_name in st.secrets:
-                return st.secrets[key_name]
-            return os.getenv(key_name, "")
+        # Check Streamlit Secrets first (for Cloud Mode)
+        if hasattr(st, "secrets") and "GCP_CREDS_B64" in st.secrets:
+            b64_token = st.secrets["GCP_CREDS_B64"]
+        else:
+            b64_token = os.getenv("GCP_CREDS_B64", "")
 
-        target_project = get_val("GCP_PROJECT_ID")
-        if not target_project:
+        if not b64_token:
+            # Local fallback: Look for physical json if running locally
+            if os.path.exists("google_creds.json"):
+                with open("google_creds.json") as f:
+                    return json.load(f)
             return None
-
-        # Clean and isolate the raw private key string
-        raw_key = get_val("GCP_PRIVATE_KEY").strip()
-        
-        # 🛠️ STAGE 1 REPAIR: Strip out accidental enclosing quotes if present
-        if raw_key.startswith('"') and raw_key.endswith('"'):
-            raw_key = raw_key[1:-1]
-        if raw_key.startswith("'") and raw_key.endswith("'"):
-            raw_key = raw_key[1:-1]
-
-        # 🛠️ STAGE 2 REPAIR: Handle raw line breaks and literal string literal escapes fluidly
-        raw_key = raw_key.replace("\\n", "\n")
-        
-        # 🛠️ STAGE 3 REPAIR: Ensure standard cryptographic header boundaries match PEM layout rules
-        if "-----BEGIN PRIVATE KEY-----" not in raw_key:
-            raw_key = "-----BEGIN PRIVATE KEY-----\n" + raw_key
-        if "-----END PRIVATE KEY-----" not in raw_key:
-            raw_key = raw_key + "\n-----END PRIVATE KEY-----"
             
-        # Clean up double line break overlaps safely
-        raw_key = raw_key.replace("-----\n\n", "-----\n").replace("\n\n-----", "\n-----")
-
-        return {
-            "type": get_val("GCP_TYPE"),
-            "project_id": target_project,
-            "private_key_id": get_val("GCP_PRIVATE_KEY_ID"),
-            "private_key": raw_key,
-            "client_email": get_val("GCP_CLIENT_EMAIL"),
-            "client_id": get_val("GCP_CLIENT_ID"),
-            "auth_uri": get_val("GCP_AUTH_URI"),
-            "token_uri": get_val("GCP_TOKEN_URI"),
-            "auth_provider_x509_cert_url": get_val("GCP_AUTH_PROVIDER_X509_CERT_URL"),
-            "client_x509_cert_url": get_val("GCP_CLIENT_X509_CERT_URL"),
-            "universe_domain": "googleapis.com"
-        }
+        # Clean up string parameters
+        clean_token = str(b64_token).strip().replace('"', '').replace("'", "")
+        
+        # Decode base64 directly back to a functional JSON dictionary block
+        decoded_json = base64.b64decode(clean_token).decode("utf-8")
+        return json.loads(decoded_json)
+        
     except Exception as e:
-        logging.error(f"🛑 Critical structural break during background authorization handshakes: {e}")
+        logging.error(f"🛑 Critical break during Base64 credentials hydration: {e}")
         return None
 
 def get_gspread_client():
@@ -115,7 +92,6 @@ def fetch_cloud_prediction_logs():
         return None
         
     try:
-        # Securely match sheet records by dynamic workspace names or absolute link references
         try:
             sheet = client.open_by_url(SPREADSHEET_LINK).worksheet(WORKSHEET_NAME)
         except Exception:
@@ -331,11 +307,11 @@ if app_view == "🔮 Route Risk Checker":
                             lon_val = 77.1887 if "Manali" in str(res_data.get("resolved_name")) else 74.1240
                             
                         map_dataframe = pd.DataFrame({"latitude": [float(lat_val)], "longitude": [float(lon_val)]})
-                        st.map(map_dataframe, zoom=9)
+                        st.map(map_dataframe, width='stretch')
                     except Exception:
                         st.warning("⚠️ Map coordinates parsing error. Fallback loaded.")
                         fallback_df = pd.DataFrame({"latitude": [32.2396], "longitude": [77.1887]})
-                        st.map(fallback_df, zoom=7)
+                        st.map(fallback_df, width='stretch')
                     
                     if "Minimal" in tier: st.success("### ✅ Minimal Risk (Excellent Route Conditions)")
                     elif "Low" in tier: st.success("### 🍏 Low Risk (Stable Route Conditions)")
@@ -403,7 +379,7 @@ if app_view == "🔮 Route Risk Checker":
     st.header("🕒 Recent Checks This Session")
     if st.session_state.prediction_history:
         hist_df = pd.DataFrame(st.session_state.prediction_history)
-        st.dataframe(hist_df.sort_index(ascending=False), use_container_width=True)
+        st.dataframe(hist_df.sort_index(ascending=False), width='stretch')
     else:
         st.info("ℹ️ No routes checked yet this session. Enter a destination above to see your recent search log history.")
 
@@ -421,7 +397,7 @@ elif app_view == "📊 Travel Data Analytics":
         st.sidebar.success("🟢 Analytics Core Online")
     else:
         st.sidebar.error("🔴 Analytics Core Offline")
-    st.sidebar.info("🔓 Open Access Mode: Currently reviewing live cloud logs and accuracy checks.")
+    st.sidebar.sidebar_info = st.sidebar.info("🔓 Open Access Mode: Currently reviewing live cloud logs and accuracy checks.")
 
     st.header("⚡ Live Cloud Spreadsheet Summary & User Traffic Trends")
     
@@ -536,7 +512,7 @@ elif app_view == "📊 Travel Data Analytics":
                 "AI Prediction Path": pred_scores[-40:],
                 "Verified Ground Truth": actual_scores[-40:]
             })
-            st.line_chart(comparison_line_df, width="stretch")
+            st.line_chart(comparison_line_df, width='stretch')
             
             residual_variance = np.sum((actual_scores - pred_scores) ** 2)
             total_variance = np.sum((actual_scores - np.mean(actual_scores)) ** 2)
@@ -553,7 +529,7 @@ elif app_view == "📊 Travel Data Analytics":
                 "Actual Confirmed Counts": [actual_categories_cleaned.count("Low"), actual_categories_cleaned.count("Moderate"), actual_categories_cleaned.count("High")]
             }
             matrix_df = pd.DataFrame(matrix_records)
-            st.dataframe(matrix_df, width="stretch", hide_index=True)
+            st.dataframe(matrix_df, width='stretch', hide_index=True)
 
             matches = sum(1 for p, a in zip(pred_categories, actual_categories_cleaned) if p == a)
             accuracy_percentage = max(72.4, (matches / total_records) * 100 if total_records > 0 else 88.5)
@@ -563,7 +539,7 @@ elif app_view == "📊 Travel Data Analytics":
         st.markdown(f"#### 💾 Complete System Activity Logs (Filtered: {selected_analyst_city})")
         if 'cleaned_city_match' in display_df.columns:
             display_df = display_df.drop(columns=['cleaned_city_match'])
-        st.dataframe(display_df, width="stretch")
+        st.dataframe(display_df, width='stretch')
     else:
         st.info("ℹ No safety searches logged yet. Run a few route checks inside the 'Route Risk Checker' menu to view trend graphs.")
 
@@ -576,7 +552,7 @@ elif app_view == "📊 Travel Data Analytics":
     if os.path.exists(profile_path):
         st.markdown("### 🗺️ Typical Risk Distribution Across Core Tourist Locations (%)")
         profiles_df = pd.read_csv(profile_path)
-        st.dataframe(profiles_df, width="stretch")
+        st.dataframe(profiles_df, width='stretch')
 
         st.markdown("#### Visual Risk Category Distribution Comparison Graph")
         st.bar_chart(profiles_df.set_index("Location"))
@@ -620,7 +596,7 @@ elif app_view == "📊 Travel Data Analytics":
         s_col1, s_col2 = st.columns([2, 3], gap="medium")
         with s_col1:
             st.markdown(f"#### 📊 Seasonal Breakdown Matrix ({selected_analyst_city})")
-            st.dataframe(seasonal_df, width="stretch", hide_index=True)
+            st.dataframe(seasonal_df, width='stretch', hide_index=True)
             if selected_analyst_city == "🌐 Show All Indian Cities Together":
                 st.info("💡 **General Insight:** Showing regional historical averages computed across all available destinations.")
             else:
@@ -628,7 +604,7 @@ elif app_view == "📊 Travel Data Analytics":
             
         with s_col2:
             st.markdown("#### 📈 How Seasonal Hazards Change Across Factors")
-            st.bar_chart(seasonal_df.set_index("Holiday Season Window"), horizontal=True, width="stretch")
+            st.bar_chart(seasonal_df.set_index("Holiday Season Window"), horizontal=True, width='stretch')
             
     except Exception as e:
         st.error(f"⚠️ Failed to calculate dynamic seasonal trends: {e}")
@@ -646,7 +622,7 @@ elif app_view == "📊 Travel Data Analytics":
         else:
             filtered_df = attr_df
 
-        st.dataframe(filtered_df.head(100), width="stretch")
+        st.dataframe(filtered_df.head(100), width='stretch')
         st.markdown("#### Baseline Summary Distribution Statistics (Overall Score Dispersion)")
         st.dataframe(filtered_df["overall_hazard_score"].describe().to_frame().T)
     else:
