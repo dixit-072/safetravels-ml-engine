@@ -89,12 +89,14 @@ def fetch_real_time_weather(lat: float, lon: float) -> dict:
     Returns parsed dictionary parameters or None upon request timeout.
     """
     try:
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,rain,wind_speed_10m"
+        # Changed "rain" to "precipitation" in the URL query string
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,precipitation,wind_speed_10m"
         response = requests.get(url, timeout=6)
         if response.status_code == 200:
             current_data = response.json().get("current", {})
             return {
-                "rain": float(current_data.get("rain", 0.0)),
+                # Map precipitation to your existing "rain" key so nothing breaks on the frontend!
+                "rain": float(current_data.get("precipitation", 0.0)),
                 "temp_max": float(current_data.get("temperature_2m", 20.0)),
                 "wind_speed": float(current_data.get("wind_speed_10m", 10.0))
             }
