@@ -300,11 +300,11 @@ if app_view == "🔮 Route Risk Checker":
                     with m_r1_c1:
                         st.metric(label="⛰️ Altitude Height", value=f"{normalized_features['elevation']:,.0f} meters")
                     with m_r1_col2:
-                            # Extract both temperatures from the backend API response
-                            t_max = data["processed_features"]["temp_max"]
-                            t_min = data["processed_features"]["temp_min"]
-                            # Display them cleanly as High (H) and Low (L)
-                            st.metric("Expected Temperature", f"H: {t_max}°C | L: {t_min}°C")
+                        # Use 'normalized_features' to match the rest of your app!
+                        t_max = normalized_features["temp_max"]
+                        t_min = normalized_features["temp_min"]
+                        # Display with thermometer emoji and 1 decimal place rounding
+                        st.metric(label="🌡️ Expected Temperature", value=f"H: {t_max:.1f}°C | L: {t_min:.1f}°C")
 
                     st.write("")
                     m_r2_c1, m_r2_col2 = st.columns(2)
