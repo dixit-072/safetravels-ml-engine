@@ -297,24 +297,26 @@ if app_view == "🔮 Route Risk Checker":
                     st.caption(res_data.get("destination_description"))
                     st.write("")
                     
-                    # Notice the [1, 1.3] - This gives the right column 30% more space!
-                    m_r1_c1, m_r1_col2 = st.columns([1, 1.3])
+                    # Bumped the ratio to 1.5 for extra breathing room
+                    m_r1_c1, m_r1_col2 = st.columns([1, 1.5])
                     with m_r1_c1:
                         st.metric(label="⛰️ Altitude Height", value=f"{normalized_features.get('elevation', 0):,.0f} meters")
                     with m_r1_col2:
                         t_max = normalized_features.get("temp_max", 0.0)
                         t_min = normalized_features.get("temp_min", 0.0)
                         
-                        # Changed .1f to .0f to remove the decimal and save space!
-                        st.metric(label="🌡️ Expected Temperature", value=f"H: {t_max:.0f}°C | L: {t_min:.0f}°C")
+                        # Shortened the label and used the clean '/' format to save pixels!
+                        st.metric(label="🌡️ Expected Temp", value=f"{t_max:.0f}°C / {t_min:.0f}°C")
 
                     st.write("")
-                    # Apply the exact same ratio to the bottom row to keep the grid perfectly aligned
-                    m_r2_c1, m_r2_col2 = st.columns([1, 1.3])
+                    
+                    # Match the ratio for the bottom row
+                    m_r2_c1, m_r2_col2 = st.columns([1, 1.5])
                     with m_r2_c1:
                         st.metric(label="🌧️ Predicted Rainfall", value=f"{normalized_features.get('rain', 0.0):.2f} mm")
                     with m_r2_col2:
-                        st.metric(label="💨 Estimated Wind Speed", value=f"{normalized_features.get('wind_speed', 0.0):.1f} km/h")
+                        # Shortened label to keep the grid perfectly balanced
+                        st.metric(label="💨 Estimated Wind", value=f"{normalized_features.get('wind_speed', 0.0):.1f} km/h")
 
                 with col_advisory:
                     try:
