@@ -298,20 +298,24 @@ if app_view == "🔮 Route Risk Checker":
                     st.write("")
                     
                     # Changed back to an equal 50/50 split
+                    # Main 50/50 split for the top row
                     m_r1_c1, m_r1_col2 = st.columns(2)
                     with m_r1_c1:
-                        # Changed "meters" to "m" to prevent it from ever getting cut off
                         st.metric(label="⛰️ Altitude Height", value=f"{normalized_features.get('elevation', 0):,.0f} m")
                     with m_r1_col2:
                         t_max = normalized_features.get("temp_max", 0.0)
                         t_min = normalized_features.get("temp_min", 0.0)
                         
-                        # Added H: and L: back for perfect user clarity!
-                        st.metric(label="🌡️ Expected Temp", value=f"H: {t_max:.0f}°C | L: {t_min:.0f}°C")
+                        # Nesting two sub-columns inside the temperature block!
+                        sub_col1, sub_col2 = st.columns(2)
+                        with sub_col1:
+                            st.metric(label="🔴 High Temp", value=f"{t_max:.0f}°C")
+                        with sub_col2:
+                            st.metric(label="🔵 Low Temp", value=f"{t_min:.0f}°C")
 
                     st.write("")
                     
-                    # Match the equal 50/50 split for the bottom row
+                    # Main 50/50 split for the bottom row to keep the grid perfectly uniform
                     m_r2_c1, m_r2_col2 = st.columns(2)
                     with m_r2_c1:
                         st.metric(label="🌧️ Predicted Rainfall", value=f"{normalized_features.get('rain', 0.0):.2f} mm")
