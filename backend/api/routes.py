@@ -129,6 +129,31 @@ def fetch_real_time_weather(lat: float, lon: float) -> dict:
         logging.warning(f"⚠️ Live API connection dropped or failed parsing. Reverting to simulation: {network_err}")
     return None
 
+# =====================================================================
+# LIVE GEOCODING UTILITY (DYNAMIC MAP FIX)
+# =====================================================================
+def geocode_city(city_name: str) -> dict:
+    """
+    Queries Open-Meteo Geocoding API to find the exact latitude and longitude
+    of any custom city entered by the user.
+    """
+    try:
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={city_name}&count=1&language=en&format=json"
+        response = requests.get(url, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if "results" in data and len(data["results"]) > 0:
+                location = data["results"][0]
+                return {
+                    "latitude": location["latitude"],
+                    "longitude": location["longitude"],
+                    "destination_type": "📍 Custom Searched Route"
+                }
+    except Exception as e:
+        logging.warning(f"Geocoding failed for {city_name}: {e}")
+    
+    return None
 
 class RoutePredictionRequest(BaseModel):
     location_query: str = Field(..., example="Goa")
@@ -160,8 +185,23 @@ async def predict_route_risk(payload: RoutePredictionRequest):
         seed_value = sum(ord(char) for char in seed_string)
         np.random.seed(seed_value)
         
-        # Load local base metadata profile
-        profile = CITY_PROFILES.get(resolved_name, DEFAULT_PROFILE)
+        # Check if the city is in our hardcoded known database
+        profile = CITY_PROFILES.get(resolved_name)
+        
+        # If it's a custom city, fetch real coordinates dynamically!
+        if profile is None:
+            geo_data = geocode_city(resolved_name)
+            if geo_data:
+                profile = {
+                    "elevation_range": DEFAULT_PROFILE["elevation_range"],
+                    "temp_range": DEFAULT_PROFILE["temp_range"],
+                    "destination_type": geo_data["destination_type"],
+                    "latitude": geo_data["latitude"],
+                    "longitude": geo_data["longitude"]
+                }
+            else:
+                # Absolute fallback if internet fails
+                profile = DEFAULT_PROFILE
         
         # Determine topographical layout limits
         elevation = float(np.random.randint(profile["elevation_range"][0], profile["elevation_range"][1]))
@@ -174,13 +214,13 @@ async def predict_route_risk(payload: RoutePredictionRequest):
         if live_weather:
             rain = live_weather["rain"]
             temp_max = live_weather["temp_max"]
-            temp_min = live_weather["temp_min"]  # ADDED: Extracting min temp from API
+            temp_min = live_weather["temp_min"]  
             wind_speed = live_weather["wind_speed"]
         else:
             # Resilient fallback matrices if connection interface fails
             rain = float(np.random.uniform(0.0, 12.0))
-            temp_min = float(np.random.uniform(profile["temp_range"][0], profile["temp_range"][1] - 5.0)) # ADDED: Fallback Min
-            temp_max = temp_min + float(np.random.uniform(4.0, 10.0)) # Dynamically calculate Max based on Min
+            temp_min = float(np.random.uniform(profile["temp_range"][0], profile["temp_range"][1] - 5.0)) 
+            temp_max = temp_min + float(np.random.uniform(4.0, 10.0)) 
             wind_speed = float(np.random.uniform(5.0, 28.0))
         
         # Apply mathematical scaling penalties for extreme altimeters
@@ -191,7 +231,7 @@ async def predict_route_risk(payload: RoutePredictionRequest):
             "rain": rain,
             "wind_speed": wind_speed,
             "temp_max": temp_max,
-            "temp_min": temp_min,  # ADDED: Passing min temp to frontend!
+            "temp_min": temp_min,  
             "elevation_penalty": elevation_penalty,
             "transport_complexity_score": float(np.random.uniform(5.0, 18.0)),
             "crowd_baseline": float(np.random.randint(15, 85)),
