@@ -81,9 +81,6 @@ DEFAULT_PROFILE = {
 
 
 # =====================================================================
-# LIVE METEOROLOGICAL NETWORK UTILITY
-# =====================================================================
-# =====================================================================
 # LIVE METEOROLOGICAL NETWORK UTILITY (FORTIFIED)
 # =====================================================================
 def fetch_real_time_weather(lat: float, lon: float) -> dict:
@@ -92,7 +89,7 @@ def fetch_real_time_weather(lat: float, lon: float) -> dict:
     Sanitizes all outputs to completely eliminate NaN injection errors.
     """
     try:
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,precipitation,wind_speed_10m&daily=precipitation_sum&timezone=auto&forecast_days=1"
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,precipitation,wind_speed_10m&daily=precipitation_sum,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1"
         response = requests.get(url, timeout=6)
         
         if response.status_code == 200:
@@ -100,19 +97,22 @@ def fetch_real_time_weather(lat: float, lon: float) -> dict:
             current_data = data.get("current", {})
             daily_data = data.get("daily", {})
             
-            # 1. Parse Rainfall safely from daily totals or fallback to current precipitation snapshot
+            # 1. Parse Rainfall safely
             rain_val = 0.0
             if "precipitation_sum" in daily_data and len(daily_data["precipitation_sum"]) > 0:
                 rain_val = daily_data["precipitation_sum"][0]
             if rain_val is None or np.isnan(float(rain_val)):
                 rain_val = current_data.get("precipitation", 0.0)
-                
-            # Final sanity fallback check for rain
             clean_rain = float(rain_val) if (rain_val is not None and not np.isnan(float(rain_val))) else 0.0
             
-            # 2. Parse Temperature safely
-            temp_val = current_data.get("temperature_2m", 20.0)
-            clean_temp = float(temp_val) if (temp_val is not None and not np.isnan(float(temp_val))) else 20.0
+            # 2. Parse MAX and MIN Temperature Safely
+            current_temp = current_data.get("temperature_2m", 20.0)
+            
+            temp_max_list = daily_data.get("temperature_2m_max", [])
+            clean_temp_max = float(temp_max_list[0]) if (len(temp_max_list) > 0 and temp_max_list[0] is not None) else current_temp
+            
+            temp_min_list = daily_data.get("temperature_2m_min", [])
+            clean_temp_min = float(temp_min_list[0]) if (len(temp_min_list) > 0 and temp_min_list[0] is not None) else current_temp
             
             # 3. Parse Wind Speed safely
             wind_val = current_data.get("wind_speed_10m", 10.0)
@@ -120,7 +120,8 @@ def fetch_real_time_weather(lat: float, lon: float) -> dict:
 
             return {
                 "rain": clean_rain,
-                "temp_max": clean_temp,
+                "temp_max": clean_temp_max,
+                "temp_min": clean_temp_min,
                 "wind_speed": clean_wind
             }
             
@@ -173,11 +174,13 @@ async def predict_route_risk(payload: RoutePredictionRequest):
         if live_weather:
             rain = live_weather["rain"]
             temp_max = live_weather["temp_max"]
+            temp_min = live_weather["temp_min"]  # ADDED: Extracting min temp from API
             wind_speed = live_weather["wind_speed"]
         else:
             # Resilient fallback matrices if connection interface fails
             rain = float(np.random.uniform(0.0, 12.0))
-            temp_max = float(np.random.uniform(profile["temp_range"][0], profile["temp_range"][1]))
+            temp_min = float(np.random.uniform(profile["temp_range"][0], profile["temp_range"][1] - 5.0)) # ADDED: Fallback Min
+            temp_max = temp_min + float(np.random.uniform(4.0, 10.0)) # Dynamically calculate Max based on Min
             wind_speed = float(np.random.uniform(5.0, 28.0))
         
         # Apply mathematical scaling penalties for extreme altimeters
@@ -188,6 +191,7 @@ async def predict_route_risk(payload: RoutePredictionRequest):
             "rain": rain,
             "wind_speed": wind_speed,
             "temp_max": temp_max,
+            "temp_min": temp_min,  # ADDED: Passing min temp to frontend!
             "elevation_penalty": elevation_penalty,
             "transport_complexity_score": float(np.random.uniform(5.0, 18.0)),
             "crowd_baseline": float(np.random.randint(15, 85)),

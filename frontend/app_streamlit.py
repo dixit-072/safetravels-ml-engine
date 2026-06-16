@@ -10,6 +10,7 @@ import base64
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from dotenv import load_dotenv
+from xgboost import data
 from summary import generate_semantic_narrative  # Import your clean modular summary engine
 
 # Ingest configuration mappings from the hidden environment file
@@ -299,8 +300,12 @@ if app_view == "🔮 Route Risk Checker":
                     with m_r1_c1:
                         st.metric(label="⛰️ Altitude Height", value=f"{normalized_features['elevation']:,.0f} meters")
                     with m_r1_col2:
-                        st.metric(label="🌡️ Expected Temperature", value=f"{normalized_features['temp_max']:.1f} °C")
-                        
+                            # Extract both temperatures from the backend API response
+                            t_max = data["processed_features"]["temp_max"]
+                            t_min = data["processed_features"]["temp_min"]
+                            # Display them cleanly as High (H) and Low (L)
+                            st.metric("Expected Temperature", f"H: {t_max}°C | L: {t_min}°C")
+
                     st.write("")
                     m_r2_c1, m_r2_col2 = st.columns(2)
                     with m_r2_c1:
