@@ -132,23 +132,36 @@ def fetch_real_time_weather(lat: float, lon: float) -> dict:
 # =====================================================================
 # LIVE GEOCODING UTILITY (DYNAMIC MAP FIX)
 # =====================================================================
+# =====================================================================
+# LIVE GEOCODING UTILITY (INDIA-ONLY FILTER)
+# =====================================================================
 def geocode_city(city_name: str) -> dict:
     """
-    Queries Open-Meteo Geocoding API to find the exact latitude and longitude
-    of any custom city entered by the user.
+    Queries Open-Meteo Geocoding API and forces it to prioritize India.
     """
     try:
-        url = f"https://geocoding-api.open-meteo.com/v1/search?name={city_name}&count=1&language=en&format=json"
+        # We ask the satellite for the top 5 matches instead of just 1
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={city_name}&count=5&language=en&format=json"
         response = requests.get(url, timeout=5)
         
         if response.status_code == 200:
             data = response.json()
-            if "results" in data and len(data["results"]) > 0:
+            if "results" in data:
+                # Loop through the results and ONLY accept the one inside India
+                for location in data["results"]:
+                    if location.get("country") == "India":
+                        return {
+                            "latitude": location["latitude"],
+                            "longitude": location["longitude"],
+                            "destination_type": "📍 Custom Searched Route"
+                        }
+                
+                # Fallback just in case a user types an international city like "London"
                 location = data["results"][0]
                 return {
                     "latitude": location["latitude"],
                     "longitude": location["longitude"],
-                    "destination_type": "📍 Custom Searched Route"
+                    "destination_type": "✈️ International Route"
                 }
     except Exception as e:
         logging.warning(f"Geocoding failed for {city_name}: {e}")
