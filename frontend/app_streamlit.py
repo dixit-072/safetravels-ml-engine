@@ -283,6 +283,7 @@ if app_view == "🔮 Route Risk Checker":
                     "rain": float(telemetry.get('rain', 0.0)),
                     "wind_speed": float(telemetry.get('wind_speed', 0.0)),
                     "temp_max": float(telemetry.get('temp_max', 0.0)),
+                    "temp_min": float(telemetry.get('temp_min', 0.0)),
                     "elevation": float(telemetry.get('elevation', 0.0)),
                     "resolved_name": res_data.get("resolved_name", "Specified Destination"),
                     "risk_score": float(score)
