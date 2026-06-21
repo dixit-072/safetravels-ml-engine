@@ -34,26 +34,46 @@ def render_budget_tab(location_query: str, target_date: str, log_function=None):
             travel_style = st.selectbox("🎒 Travel Style", ["Backpacker", "Standard", "Luxury"], index=1)
             
         with col4:
+            # 1. Set base transports based on travel style
             if travel_style == "Backpacker":
                 dynamic_transports = ["Train (Sleeper/3AC)", "Bus (Non-AC)", "Bus (AC Volvo)"]
-                default_index = 0
             elif travel_style == "Luxury":
                 dynamic_transports = ["Flight", "Personal Car / Taxi"]
-                default_index = 0
             else:
                 dynamic_transports = ["Flight", "Train (Sleeper/3AC)", "Bus (AC Volvo)", "Personal Car / Taxi"]
-                default_index = 2
 
+            # 2. 🛡️ SMART FILTERS (Airport & Train Check)
             city_name_clean = location_query.strip().title()
-            city_data = CITY_DB.get(city_name_clean, {"Has_Airport": 1}) 
+            
+            # Note: We now look for Has_Train as well!
+            city_data = CITY_DB.get(city_name_clean, {"Has_Airport": 1, "Has_Train": 1}) 
+            
+            warnings = [] # Keep track of what we remove for the UI caption
+
+            # Airport Check
             if city_data.get("Has_Airport", 1) == 0:
                 if "Flight" in dynamic_transports:
                     dynamic_transports.remove("Flight")
-                    default_index = 0
+                    warnings.append("airport")
             
-            transport_mode = st.selectbox("🚆 Transport", dynamic_transports, index=min(default_index, len(dynamic_transports)-1))
-            if city_data.get("Has_Airport", 1) == 0:
-                st.caption(f"*(No airport in {location_query})*")
+            # Train Check
+            if city_data.get("Has_Train", 1) == 0:
+                train_string = "Train (Sleeper/3AC)"
+                if train_string in dynamic_transports:
+                    dynamic_transports.remove(train_string)
+                    warnings.append("train station")
+
+            # Fallback if filters accidentally remove all options
+            if not dynamic_transports:
+                dynamic_transports = ["Personal Car / Taxi"]
+
+            # Draw the dropdown
+            transport_mode = st.selectbox("🚆 Transport", dynamic_transports, index=0)
+            
+            # Draw the subtle warnings based on what was removed
+            if warnings:
+                warning_text = " or ".join(warnings)
+                st.caption(f"*(No {warning_text} in {location_query})*")
 
         st.markdown("---") 
         pref_col1, pref_col2, pref_col3 = st.columns([2, 1, 1])

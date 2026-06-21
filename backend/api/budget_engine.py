@@ -23,7 +23,8 @@ def load_city_database():
                     "Tier": row["Tier"].strip(),
                     "Peak_Months": peak_months,
                     "Base_Flight_Cost": float(row["Base_Flight_Cost"]),
-                    "Has_Airport": int(row["Has_Airport"])
+                    "Has_Airport": int(row.get("Has_Airport", 1)), 
+                    "Has_Train": int(row.get("Has_Train", 1))      
                 }
     else:
         print(f"⚠️ Warning: cities.csv not found at {csv_path}! Relying on fallback data.")
