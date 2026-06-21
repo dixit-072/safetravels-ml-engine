@@ -342,7 +342,7 @@ if app_view == "🔮 Route Risk Checker":
                         map_data = pd.DataFrame({
                             "lat": [src_lat, dest_lat],
                             "lon": [src_lon, dest_lon],
-                            "color": [[46, 204, 113, 200], [231, 76, 60, 200]],
+                            "color": [[231, 76, 60, 200], [46, 204, 113, 200]],
                             "name": ["Origin", "Destination"]
                         })
 
