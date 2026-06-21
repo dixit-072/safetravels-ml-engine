@@ -6,6 +6,7 @@ pydeck
 # --- Backend / API ---
 fastapi
 uvicorn
+polyline
 
 # --- Data & Machine Learning ---
 pandas
