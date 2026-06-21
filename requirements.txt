@@ -1,16 +1,27 @@
-streamlit>=1.28.0
-st-gsheets-connection
+# --- Frontend / UI ---
+streamlit>=1.32.0
+plotly
+pydeck
+
+# --- Backend / API ---
+fastapi
+uvicorn
+
+# --- Data & Machine Learning ---
 pandas
 numpy
-mysql-connector-python
-fastapi
-joblib
-uvicorn
-python-dotenv
-holidays
 scikit-learn
 xgboost
-pytest
+joblib
+holidays
+
+# --- Cloud, Database & Auth ---
+requests
 gspread
 google-auth
-requests
+st-gsheets-connection
+mysql-connector-python
+python-dotenv
+
+# --- Testing ---
+pytest
