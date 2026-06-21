@@ -116,6 +116,35 @@ def run_model_training_pipeline():
     
     joblib.dump(champion_model, model_out)
     joblib.dump(feature_columns, schema_out)
+
+    # -------------------------------------------------------------------------
+    # 🎯 PHASE 12: GENERATING MLOPS DASHBOARD DATA (TRUTH COMPARISON)
+    # -------------------------------------------------------------------------
+    logging.info(" --- GENERATING FINAL DASHBOARD DATASET WITH ML PREDICTIONS ---")
+    ANALYSIS_DIR = "analysis"
+    if not os.path.exists(ANALYSIS_DIR): os.makedirs(ANALYSIS_DIR)
+
+    # 1. Use the Champion ML Model to predict scores for the entire 5-year dataset
+    df['predicted_hazard_score'] = np.round(champion_model.predict(df[feature_columns].astype(float)), 2)
+
+    # 2. Rename the old math formula score to establish our Ground Truth
+    df.rename(columns={'overall_hazard_score': 'actual_score'}, inplace=True)
+
+    # 3. Select the exact columns the Streamlit dashboard needs
+    dash_cols = [
+        'location', 'date', 'actual_score', 'predicted_hazard_score', 'risk_category',
+        'weather_risk_share', 'landslide_risk_share', 'crowd_risk_share', 'transport_risk_share'
+    ]
+    df_dash = df[dash_cols].copy()
+
+    # 4. Export the ML-enhanced file (This overwrites the basic one from data_prep)
+    dash_out = os.path.join(ANALYSIS_DIR, "risk_attribution_dashboard.csv")
+    df_dash.to_csv(dash_out, index=False)
+    logging.info(f" ✅ MLOps Truth Comparison Data Exported: '{dash_out}'")
+
+    # ... (Keep your final logging print statements below this)
+    logging.info(" =====================================================================")
+    logging.info(f" ✅ CHAMPION BINARY EXPORTED SUCCESSFULLY: '{model_out}'")
     
     logging.info(" =====================================================================")
     logging.info(f" ✅ CHAMPION BINARY EXPORTED SUCCESSFULLY: '{model_out}'")

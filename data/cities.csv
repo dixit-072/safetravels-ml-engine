@@ -1,0 +1,9 @@
+City,Tier,Peak_Months,Base_Flight_Cost,Has_Airport
+Goa,Tier_1,"11,12,1",5000,1
+Mumbai,Tier_1,"11,12,1,2",4500,1
+Delhi,Tier_1,"11,12,1",4000,1
+Manali,Tier_Mountain,"5,6",7000,0
+Shimla,Tier_2,"5,6,12",6000,0
+Jaipur,Tier_2,"11,12,1",4000,1
+Bilaspur,Tier_3,"",3000,0
+Udaipur,Tier_2,"10,11,12",4500,1

@@ -21,9 +21,9 @@ echo.
 echo =====================================================================
 echo 🧭 CONTROL ROOM: Select an Operations Phase to Trigger
 echo =====================================================================
-echo [1] Run Data Engineering Pipeline (Harvest Weather & Build Matrices)
-echo [2] Execute Machine Learning Tournament (Train Model & Lock Schemas)
-echo [3] Launch Complete Production Network (FastAPI Backend + Streamlit UI)
+echo [1] Run Data Engineering Pipeline (Harvest Weather and Build Matrices)
+echo [2] Execute Machine Learning Tournament (Train Model and Lock Schemas)
+echo [3] Launch Complete Production Network (Risk ML + Budget API + Streamlit)
 echo [4] Execute Automated Integration Test Suite (Pytest Framework)
 echo [5] Exit Control Room
 echo.
@@ -74,18 +74,19 @@ echo.
 echo =====================================================================
 echo 🚀 PHASE 03: Launching Decoupled Enterprise Software Clusters...
 echo =====================================================================
-echo 🔌 Deploying FastAPI server layer on port 8000...
-:: Using unique titles so our tracking engine can gracefully reference them later
-start "ST_BACKEND" /min cmd /c "call venv\Scripts\activate.bat && python backend/main.py"
+echo 🔌 Deploying FastAPI server layer (Risk + Budget Engines) on port 8000...
+:: FIXED: Removed /min and changed /c to /k so the window stays open to show errors!
+start "ST_BACKEND" cmd /k "call venv\Scripts\activate.bat && uvicorn backend.main:app --port 8000"
 
 echo 🎨 Deploying UI Streamlit visualization engine tier...
-start "ST_FRONTEND" /min cmd /c "call venv\Scripts\activate.bat && streamlit run frontend/app_streamlit.py"
+:: FIXED: Removed /min and changed /c to /k so the window stays open to show errors!
+start "ST_FRONTEND" cmd /k "call venv\Scripts\activate.bat && streamlit run frontend/app_streamlit.py"
 
 echo.
 echo 🟢 SYSTEM STATE: RUNNING
 echo ---------------------------------------------------------------------
-echo Core clusters are actively processing transactions in the background.
-echo [!] CRITICAL: To spin down servers and free up network ports, 
+echo Core clusters are actively processing transactions in new windows.
+echo [WARNING] CRITICAL: To spin down servers and free up network ports, 
 echo     press ANY KEY inside this window to run the teardown cycle.
 echo ---------------------------------------------------------------------
 echo.
@@ -95,7 +96,6 @@ echo.
 echo =====================================================================
 echo 🛑 SHUTDOWN INITIATED: Cleanly Killing Background Server Processes...
 echo =====================================================================
-:: Professionally target and terminate only our project windows via their process titles
 taskkill /FI "WINDOWTITLE eq ST_BACKEND*" /T /F >nul 2>&1
 taskkill /FI "WINDOWTITLE eq ST_FRONTEND*" /T /F >nul 2>&1
 echo ✓ Port 8000 and Port 8501 cluster environments recycled successfully.

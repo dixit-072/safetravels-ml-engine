@@ -162,3 +162,16 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
     except (KeyError, ValueError) as err:
         logging.error(f"❌ Key rendering break: {err}")
         return "### 📊 Live route metrics logged inside system files."
+
+def generate_combined_summary(risk_tier: str, stress_score: float, emergency_buffer: float) -> str:
+    """
+    Generates a Combined Intelligence narrative based on weather risk and financial stress.
+    """
+    if stress_score <= 100 and ("Low" in risk_tier or "Minimal" in risk_tier):
+        return f"**🟢 GREEN LIGHT:** Highly optimal trip! You have a safe **{risk_tier}** weather profile paired with a healthy **{stress_score}%** financial stress score. You are good to go!"
+        
+    elif stress_score > 100 and ("Critical" in risk_tier or "Elevated" in risk_tier):
+        return f"**🔴 RED LIGHT:** High Risk Trip! You are facing compounding hazards. The severe **{risk_tier}** weather profile increases the likelihood of delays, which will strain a budget that is already **{stress_score - 100:.1f}% over capacity**."
+        
+    else:
+        return f"**🟡 YELLOW LIGHT:** Mixed conditions. Balance your **{risk_tier}** safety profile with your **{stress_score}%** budget utilization. Ensure your emergency buffer (₹{emergency_buffer:,.0f}) is liquid and accessible."
