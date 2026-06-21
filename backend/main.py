@@ -21,6 +21,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 🟢 KEEP-ALIVE ENDPOINT: Explicitly handles GET and HEAD requests to prevent 405 errors from UptimeRobot
+@app.get("/health")
+@app.head("/health")
+async def health_check():
+    return {"status": "ok", "message": "Engine is awake and operational"}
+
 app.include_router(router)
 
 if __name__ == "__main__":
