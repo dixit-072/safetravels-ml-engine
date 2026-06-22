@@ -613,7 +613,7 @@ elif app_view == "📊 Travel Data Analytics":
         # 👈 This is the missing piece that catches the empty database!
         else:
             st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
-            
+
     with tab_budget_analytics:
         st.header("💸 AI Financial Forecasting Insights")
         
@@ -625,69 +625,87 @@ elif app_view == "📊 Travel Data Analytics":
         else:
             import plotly.express as px
             
-            b_col1, b_col2, b_col3 = st.columns(3)
-            
-            # Smart column fetching (in case order changes)
+            # Smart column fetching
             cost_col = 'Estimated Total' if 'Estimated Total' in budget_df.columns else budget_df.columns[-3]
             stress_col = 'Stress Score (%)' if 'Stress Score (%)' in budget_df.columns else budget_df.columns[-2]
             style_col = 'Style' if 'Style' in budget_df.columns else budget_df.columns[5]
             transport_col = 'Transport' if 'Transport' in budget_df.columns else budget_df.columns[6]
             
-            # Clean the data to ensure math works
-            budget_df[cost_col] = pd.to_numeric(budget_df[cost_col], errors='coerce')
-            budget_df[stress_col] = pd.to_numeric(budget_df[stress_col], errors='coerce')
-            
-            with b_col1:
-                st.metric("Total Forecasts Run", len(budget_df))
-            with b_col2:
-                avg_stress = budget_df[stress_col].mean()
-                st.metric("Avg Financial Stress", f"{avg_stress:.1f}%" if pd.notnull(avg_stress) else "N/A")
-            with b_col3:
-                avg_cost = budget_df[cost_col].mean()
-                st.metric("Avg Estimated Trip Cost", f"₹{avg_cost:,.0f}" if pd.notnull(avg_cost) else "N/A")
+            # Find the Location column for the budget sheet (Usually the 2nd column)
+            loc_col_budget = 'Location' if 'Location' in budget_df.columns else budget_df.columns[1]
 
-            st.write("---")
-            
-            # 📈 1-TRIP SAFE PLOTLY CHART: Estimated Cost Trend
-            st.markdown("#### 📈 Trip Cost Estimates Over Time")
-            budget_df['Forecast Number'] = [f"Forecast {i+1}" for i in range(len(budget_df))]
-            
-            fig_cost = px.line(
-                budget_df, 
-                x='Forecast Number', 
-                y=cost_col,
-                markers=True, # 👈 Fixes the 1-trip blank chart issue!
-                line_shape="spline",
-                color_discrete_sequence=["#2ecc71"] # A nice financial green color
-            )
-            fig_cost.update_layout(xaxis_title="", yaxis_title="Cost (INR)")
-            st.plotly_chart(fig_cost, use_container_width=True)
-
-            st.write("---")
-            chart_col1, chart_col2 = st.columns(2)
-            
-            with chart_col1:
-                st.markdown("#### 🎒 Preferred Travel Styles")
-                style_counts = budget_df[style_col].value_counts().reset_index()
-                style_counts.columns = [style_col, 'Count']
-                fig_style = px.pie(style_counts, values='Count', names=style_col, hole=0.4)
-                st.plotly_chart(fig_style, use_container_width=True)
+            # --- 🎯 ADDED INTERACTIVE CITY SLICER FOR BUDGET ---
+            if loc_col_budget:
+                st.write("") # Quick spacing
+                budget_city_list = ["All Destinations"] + sorted(budget_df[loc_col_budget].astype(str).unique().tolist())
                 
-            with chart_col2:
-                st.markdown("#### 🚆 Preferred Transport Modes")
-                transport_counts = budget_df[transport_col].value_counts().reset_index()
-                transport_counts.columns = [transport_col, 'Count']
-                fig_trans = px.pie(transport_counts, values='Count', names=transport_col, hole=0.4)
-                st.plotly_chart(fig_trans, use_container_width=True)
+                # Note the unique key="budget_city_filter" to prevent conflicts with the Risk tab!
+                selected_budget_city = st.selectbox("🎯 Filter Finances by Destination:", options=budget_city_list, key="budget_city_filter")
+                
+                # Filter the dataframe before drawing the charts!
+                if selected_budget_city != "All Destinations":
+                    budget_df = budget_df[budget_df[loc_col_budget] == selected_budget_city]
+            # ----------------------------------------
 
-            st.write("---")
-            st.markdown("#### 💾 Complete Budget Forecast Logs")
-            st.dataframe(budget_df, width='stretch')
-            
-            csv_budget = budget_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Budget Data (CSV)",
-                data=csv_budget,
-                file_name=f"budget_logs_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv"
-            )
+            if budget_df.empty:
+                st.warning(f"No financial data available for {selected_budget_city}.")
+            else:
+                # Clean the data to ensure math works
+                budget_df[cost_col] = pd.to_numeric(budget_df[cost_col], errors='coerce')
+                budget_df[stress_col] = pd.to_numeric(budget_df[stress_col], errors='coerce')
+                
+                b_col1, b_col2, b_col3 = st.columns(3)
+                with b_col1:
+                    st.metric("Total Forecasts Run", len(budget_df))
+                with b_col2:
+                    avg_stress = budget_df[stress_col].mean()
+                    st.metric("Avg Financial Stress", f"{avg_stress:.1f}%" if pd.notnull(avg_stress) else "N/A")
+                with b_col3:
+                    avg_cost = budget_df[cost_col].mean()
+                    st.metric("Avg Estimated Trip Cost", f"₹{avg_cost:,.0f}" if pd.notnull(avg_cost) else "N/A")
+
+                st.write("---")
+                
+                # 📈 1-TRIP SAFE PLOTLY CHART: Estimated Cost Trend
+                st.markdown("#### 📈 Trip Cost Estimates Over Time")
+                budget_df['Forecast Number'] = [f"Forecast {i+1}" for i in range(len(budget_df))]
+                
+                fig_cost = px.line(
+                    budget_df, 
+                    x='Forecast Number', 
+                    y=cost_col,
+                    markers=True,
+                    line_shape="spline",
+                    color_discrete_sequence=["#2ecc71"] # A nice financial green color
+                )
+                fig_cost.update_layout(xaxis_title="", yaxis_title="Cost (INR)")
+                st.plotly_chart(fig_cost, use_container_width=True)
+
+                st.write("---")
+                chart_col1, chart_col2 = st.columns(2)
+                
+                with chart_col1:
+                    st.markdown("#### 🎒 Preferred Travel Styles")
+                    style_counts = budget_df[style_col].value_counts().reset_index()
+                    style_counts.columns = [style_col, 'Count']
+                    fig_style = px.pie(style_counts, values='Count', names=style_col, hole=0.4)
+                    st.plotly_chart(fig_style, use_container_width=True)
+                    
+                with chart_col2:
+                    st.markdown("#### 🚆 Preferred Transport Modes")
+                    transport_counts = budget_df[transport_col].value_counts().reset_index()
+                    transport_counts.columns = [transport_col, 'Count']
+                    fig_trans = px.pie(transport_counts, values='Count', names=transport_col, hole=0.4)
+                    st.plotly_chart(fig_trans, use_container_width=True)
+
+                st.write("---")
+                st.markdown("#### 💾 Complete Budget Forecast Logs")
+                st.dataframe(budget_df, width='stretch')
+                
+                csv_budget = budget_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Budget Data (CSV)",
+                    data=csv_budget,
+                    file_name=f"budget_logs_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv"
+                )
