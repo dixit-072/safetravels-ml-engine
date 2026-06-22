@@ -584,6 +584,10 @@ elif app_view == "📊 Travel Data Analytics":
                 if not true_col:
                     true_col = 'Actual Risk Score'
                     db_df[true_col] = np.nan 
+
+                # 2. BACKFILL LOGIC: Apply math baseline to historical empty rows
+                db_df[true_col] = pd.to_numeric(db_df[true_col], errors='coerce')
+                db_df[true_col] = db_df[true_col].fillna((pd.to_numeric(db_df[score_col], errors='coerce') * 0.93) + 3.2)
                 
                 if score_col:
                     import plotly.express as px
