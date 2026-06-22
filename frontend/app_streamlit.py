@@ -517,84 +517,103 @@ elif app_view == "📊 Travel Data Analytics":
             loc_col = next((c for c in ['resolved_name', 'Destination Location', 'location', 'Location'] if c in db_df.columns), None)
             cat_col = next((c for c in ['risk_category', 'Safety Status Category', 'category'] if c in db_df.columns), None)
             
-            kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
-            with kpi_col1:
-                st.metric(label="🔢 Total Safety Reports", value=f"{len(db_df)}")
-            with kpi_col2:
+            # --- 🎯 ADDED INTERACTIVE CITY SLICER ---
+            if loc_col:
+                st.write("") # Quick spacing
+                city_list = ["All Destinations"] + sorted(db_df[loc_col].astype(str).unique().tolist())
+                selected_city = st.selectbox("🎯 Filter Analytics by Destination:", options=city_list)
+                
+                # Filter the dataframe before drawing the charts!
+                if selected_city != "All Destinations":
+                    db_df = db_df[db_df[loc_col] == selected_city]
+            # ----------------------------------------
+            
+            if db_df.empty:
+                st.warning(f"No data available for {selected_city}.")
+            else:
+                # KPIs (Now dynamically calculating based on the filtered data)
+                kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
+                with kpi_col1:
+                    st.metric(label="🔢 Total Safety Reports", value=f"{len(db_df)}")
+                with kpi_col2:
+                    if score_col:
+                        avg_risk = pd.to_numeric(db_df[score_col], errors='coerce').mean()
+                        st.metric(label="🎚️ Average Risk Score", value=f"{avg_risk:.1f} / 100")
+                    else:
+                        st.metric(label="🎚️ Average Risk Score", value="N/A")
+                with kpi_col3:
+                    if loc_col and selected_city == "All Destinations":
+                        most_searched = db_df[loc_col].mode()[0] if not db_df.empty else "N/A"
+                        st.metric(label="📍 Top Destination", value=most_searched)
+                    else:
+                        st.metric(label="📍 Selected Filter", value=selected_city if loc_col else "N/A")
+
+                st.write("---")
+                g_col1, g_col2 = st.columns([3, 2])
+                with g_col1:
+                    st.markdown("#### 🕒 Safety Risk Variations Over Time")
+                    if score_col:
+                        st.line_chart(pd.to_numeric(db_df[score_col], errors='coerce').reset_index(drop=True))
+                
+                with g_col2:
+                    st.markdown("#### 🗂️ Risk Category Share")
+                    if cat_col:
+                        st.bar_chart(db_df[cat_col].value_counts())
+
+                st.write("---")
+                st.markdown("#### 🗄️ Search Logs Archive")
+                st.dataframe(db_df, width='stretch')
+
+                st.write("---")
+                st.markdown("#### ⚖️ AI Accuracy & Model Truth Comparison")
+                
+                true_col = next((c for c in ['actual_score', 'Actual Risk Score', 'True Score'] if c in db_df.columns), None)
+                if not true_col:
+                    true_col = 'Actual Risk Score'
+                    db_df[true_col] = np.nan 
+                
                 if score_col:
-                    avg_risk = pd.to_numeric(db_df[score_col], errors='coerce').mean()
-                    st.metric(label="🎚️ Average Risk Score", value=f"{avg_risk:.1f} / 100")
-                else:
-                    st.metric(label="🎚️ Average Risk Score", value="N/A")
-            with kpi_col3:
-                if loc_col:
-                    most_searched = db_df[loc_col].mode()[0] if not db_df.empty else "N/A"
-                    st.metric(label="📍 Top Destination", value=most_searched)
-                else:
-                    st.metric(label="📍 Top Destination", value="N/A")
-
-            st.write("---")
-            g_col1, g_col2 = st.columns([3, 2])
-            with g_col1:
-                st.markdown("#### 🕒 Safety Risk Variations Over Time")
-                if score_col:
-                    st.line_chart(pd.to_numeric(db_df[score_col], errors='coerce').reset_index(drop=True))
-            
-            with g_col2:
-                st.markdown("#### 🗂️ Risk Category Share")
-                if cat_col:
-                    st.bar_chart(db_df[cat_col].value_counts())
-
-            st.write("---")
-            st.markdown("#### 🗄️ Search Logs Archive")
-            st.dataframe(db_df, width='stretch')
-
-            st.write("---")
-            st.markdown("#### ⚖️ AI Accuracy & Model Truth Comparison")
-            
-            true_col = next((c for c in ['actual_score', 'Actual Risk Score', 'True Score'] if c in db_df.columns), None)
-            if not true_col:
-                true_col = 'Actual Risk Score'
-                db_df[true_col] = np.nan 
-            
-            if score_col:
-                import plotly.express as px
-                
-                clean_predicted = pd.to_numeric(db_df[score_col], errors='coerce')
-                
-                # MATHEMATICAL BASELINE: Simulate the heuristic score
-                math_baseline = (clean_predicted * 0.93) + 3.2 
-                
-                clean_actual = pd.to_numeric(db_df[true_col], errors='coerce').fillna(math_baseline)
-                
-                compare_df = pd.DataFrame({
-                    'AI Predicted Score': clean_predicted,
-                    'Mathematical Baseline / Reality': clean_actual
-                }).dropna()
-                
-                if not compare_df.empty:
-                    mae = (compare_df['AI Predicted Score'] - compare_df['Mathematical Baseline / Reality']).abs().mean()
+                    import plotly.express as px
                     
-                    comp_col1, comp_col2 = st.columns([1, 2])
-                    with comp_col1:
-                        st.metric(label="🎯 Mean Absolute Error (MAE)", value=f"{mae:.2f} pts", delta="Lower is better", delta_color="inverse")
-                        st.caption("Average difference between the AI prediction and the calculated mathematical baseline.")
-                        st.metric(label="✅ Validated Trips", value=len(compare_df))
+                    clean_predicted = pd.to_numeric(db_df[score_col], errors='coerce')
+                    
+                    # MATHEMATICAL BASELINE: Simulate the heuristic score
+                    math_baseline = (clean_predicted * 0.93) + 3.2 
+                    
+                    clean_actual = pd.to_numeric(db_df[true_col], errors='coerce').fillna(math_baseline)
+                    
+                    compare_df = pd.DataFrame({
+                        'AI Predicted Score': clean_predicted,
+                        'Mathematical Baseline / Reality': clean_actual
+                    }).dropna()
+                    
+                    if not compare_df.empty:
+                        mae = (compare_df['AI Predicted Score'] - compare_df['Mathematical Baseline / Reality']).abs().mean()
                         
-                    with comp_col2:
-                        st.markdown("**AI Prediction vs. Baseline Trend**")
-                        compare_df['Trip Number'] = [f"Trip {i+1}" for i in range(len(compare_df))]
-                        fig = px.line(
-                            compare_df, 
-                            x='Trip Number', 
-                            y=['AI Predicted Score', 'Mathematical Baseline / Reality'],
-                            markers=True 
-                        )
-                        fig.update_layout(legend_title_text='', xaxis_title="", yaxis_title="Risk Score")
-                        st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("💡 Waiting for validation data.")
+                        comp_col1, comp_col2 = st.columns([1, 2])
+                        with comp_col1:
+                            st.metric(label="🎯 Mean Absolute Error (MAE)", value=f"{mae:.2f} pts", delta="Lower is better", delta_color="inverse")
+                            st.caption("Average difference between the AI prediction and the calculated mathematical baseline.")
+                            st.metric(label="✅ Validated Trips", value=len(compare_df))
+                            
+                        with comp_col2:
+                            st.markdown("**AI Prediction vs. Baseline Trend**")
+                            compare_df['Trip Number'] = [f"Trip {i+1}" for i in range(len(compare_df))]
+                            fig = px.line(
+                                compare_df, 
+                                x='Trip Number', 
+                                y=['AI Predicted Score', 'Mathematical Baseline / Reality'],
+                                markers=True 
+                            )
+                            fig.update_layout(legend_title_text='', xaxis_title="", yaxis_title="Risk Score")
+                            st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("💡 Waiting for validation data.")
 
+        # 👈 This is the missing piece that catches the empty database!
+        else:
+            st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
+            
     with tab_budget_analytics:
         st.header("💸 AI Financial Forecasting Insights")
         
