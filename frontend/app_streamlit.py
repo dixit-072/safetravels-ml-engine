@@ -21,8 +21,11 @@ from budget_ui import render_budget_tab
 load_dotenv(find_dotenv(), override=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-# Load your ORS API Key right at the top
-ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImUwMTZjMTdkZDY5MDRhMGZiNTI3ZTI3ZDdiNTE5YzQ4IiwiaCI6Im11cm11cjY0In0="
+try:
+    ORS_API_KEY = st.secrets.get("ORS_API_KEY")
+except Exception:
+    ORS_API_KEY = None
+    st.error("⚠️ SECRETS ERROR: Could not find ORS_API_KEY in .streamlit/secrets.toml")
 
 st.set_page_config(page_title="SafeTravels | Smart Route Planner", page_icon="🚗", layout="wide")
 
