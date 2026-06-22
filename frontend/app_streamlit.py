@@ -45,73 +45,66 @@ st.sidebar.title("🎮 Menu Options")
 app_view = st.sidebar.radio("Switch Dashboard View:", ["🔮 Route Risk Checker", "📊 Travel Data Analytics"])
 st.sidebar.markdown("---")
 
-def _get_service_account_info():
+@st.cache_resource(ttl=600)  # Caches the login so it doesn't slow down your app
+def get_gspread_client(): # 👈 RENAMED BACK TO MATCH YOUR FILE
     try:
-        if os.path.exists("google_creds.json"):
-            with open("google_creds.json") as f:
-                return json.load(f)
-        if hasattr(st, "secrets") and "GCP_CREDS_B64" in st.secrets:
-            b64_token = st.secrets["GCP_CREDS_B64"]
-            clean_token = str(b64_token).strip().replace('"', '').replace("'", "")
-            decoded_json = base64.b64decode(clean_token).decode("utf-8")
-            return json.loads(decoded_json)
-        return None
-    except Exception as e:
-        logging.error(f"Auth Error: {e}")
-        return None
-
-def get_gspread_client():
-    try:
+        scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        
+        # 1. Try local file first (for testing on your computer)
         if os.path.exists("google_creds.json"):
             with open("google_creds.json") as f:
                 creds_dict = json.load(f)
-            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            return gspread.authorize(creds)
+            credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            return gspread.authorize(credentials)
+            
+        # 2. Try Base64 from Streamlit Secrets (for production cloud)
+        elif "GCP_CREDS_B64" in st.secrets:
+            b64_token = st.secrets["GCP_CREDS_B64"]
+            clean_token = str(b64_token).strip().replace('"', '').replace("'", "")
+            decoded_json = base64.b64decode(clean_token).decode("utf-8")
+            creds_dict = json.loads(decoded_json)
+            credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            return gspread.authorize(credentials)
+            
+        else:
+            logging.error("No credentials found in local file or st.secrets")
+            return None
+            
     except Exception as e:
-        logging.error(f"Auth Error: {e}")
-    return None
+        logging.error(f"Google Auth Failed: {e}")
+        return None
 
 # ==========================================================
-# 📊 NATIVE STREAMLIT SHEETS CONNECTION LOGIC
+# 📊 CLOUD DATA FETCHING (Using Bulletproof gspread)
 # ==========================================================
 
 def fetch_budget_cloud_logs():
+    client = get_gspread_client() # 👈 MATCHES!
+    if not client: return pd.DataFrame()
+    
     try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        # 🛠️ FIX: Explicitly hand the spreadsheet URL/Name to the reader
-        df = conn.read(
-            spreadsheet=SPREADSHEET_LINK, # Uses the variable you already defined at the top of your file
-            worksheet="budget_forecasts", 
-            usecols=list(range(10))
-        )
-        
-        df = df.dropna(how='all')
+        sheet = client.open_by_url(SPREADSHEET_LINK)
+        worksheet = sheet.worksheet("budget_forecasts")
+        records = worksheet.get_all_records()
+        df = pd.DataFrame(records).dropna(how='all')
         return df if not df.empty else pd.DataFrame()
-        
     except Exception as e:
-        logging.error(f"Streamlit Connection Error (Budget): {e}")
-        return None
+        logging.error(f"Error reading budget tab: {e}")
+        return pd.DataFrame()
 
 def fetch_cloud_prediction_logs():
+    client = get_gspread_client() # 👈 MATCHES!
+    if not client: return pd.DataFrame()
+    
     try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        # 🛠️ FIX: Explicitly hand the spreadsheet URL/Name to the reader
-        df = conn.read(
-            spreadsheet=SPREADSHEET_LINK, 
-            worksheet=WORKSHEET_NAME, 
-            usecols=list(range(15))
-        )
-        
-        df = df.dropna(how='all')
+        sheet = client.open_by_url(SPREADSHEET_LINK)
+        worksheet = sheet.worksheet(WORKSHEET_NAME)
+        records = worksheet.get_all_records()
+        df = pd.DataFrame(records).dropna(how='all')
         return df if not df.empty else pd.DataFrame()
-        
     except Exception as e:
-        logging.error(f"Streamlit Connection Error (Risk): {e}")
-        return None
-
+        logging.error(f"Error reading prediction tab: {e}")
+        return pd.DataFrame()
 def write_cloud_prediction_log(row_data: list):
     client = get_gspread_client()
     if not client: return False
