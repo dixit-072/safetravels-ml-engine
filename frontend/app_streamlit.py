@@ -460,13 +460,13 @@ if app_view == "🔮 Route Risk Checker":
                             )
 
                         # 3. Render the 3D Canvas
-                        view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=6.5, pitch=45) 
+                        # Lowered the pitch from 45 to 30 so city names are easier to read
+                        view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=6.5, pitch=30) 
                         
                         r = pdk.Deck(
                             layers=[route_layer, scatter_layer], 
                             initial_view_state=view_state, 
-                            # 🛡️ FIX 2: Use Streamlit's built-in "dark" theme which requires NO API key
-                            map_style="dark", 
+                            map_style="road", # 🌟 CHANGED: Bright, clean, street-level map!
                             tooltip={"text": "{name}"}
                         )
                         st.pydeck_chart(r)
