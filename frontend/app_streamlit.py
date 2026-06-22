@@ -75,7 +75,12 @@ def fetch_budget_cloud_logs():
     client = get_gspread_client()
     if not client: return None
     try:
-        sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1KFiu3DzOSlDGEsh4vCYnfdUd6Po-0qL3CttLbe7wm1Q/edit")
+        # 🛠️ FIX: Use SPREADSHEET_NAME instead of the hardcoded URL
+        try:
+            sheet = client.open_by_url(SPREADSHEET_LINK)
+        except Exception:
+            sheet = client.open(SPREADSHEET_NAME)
+            
         worksheet = sheet.worksheet("budget_forecasts")
         records = worksheet.get_all_records()
         return pd.DataFrame(records) if records else pd.DataFrame()
@@ -87,11 +92,17 @@ def fetch_cloud_prediction_logs():
     client = get_gspread_client()
     if not client: return None
     try:
-        sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1KFiu3DzOSlDGEsh4vCYnfdUd6Po-0qL3CttLbe7wm1Q/edit")
-        worksheet = sheet.worksheet("prediction_responses")
+        # 🛠️ FIX: Use SPREADSHEET_NAME instead of the hardcoded URL
+        try:
+            sheet = client.open_by_url(SPREADSHEET_LINK)
+        except Exception:
+            sheet = client.open(SPREADSHEET_NAME)
+            
+        worksheet = sheet.worksheet(WORKSHEET_NAME)
         records = worksheet.get_all_records()
         return pd.DataFrame(records) if records else pd.DataFrame()
     except Exception as e:
+        logging.error(f"Error fetching prediction logs: {e}")
         return None
 
 def write_cloud_prediction_log(row_data: list):
