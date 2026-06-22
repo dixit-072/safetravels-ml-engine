@@ -1,4 +1,4 @@
-<h1 align="center"># 🛡️ SafeTravels ML Engine</h1>
+<h1 align="center">🛡️ SafeTravels ML Engine</h1>
 
 
 ### Real-Time Travel Risk Prediction · FastAPI + Streamlit + Scikit-Learn
