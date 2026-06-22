@@ -614,7 +614,7 @@ elif app_view == "📊 Travel Data Analytics":
                 st.write("---")
                 st.markdown("#### ⚖️ AI Accuracy & Model Truth Comparison")
                 
-                true_col = next((c for c in ['actual_score', 'Actual Risk Score', 'True Score'] if c in db_df.columns), None)
+                true_col = next((c for c in ['calculated_baseline_risk', 'actual_score', 'Actual Risk Score', 'True Score'] if c in db_df.columns), None)
                 if not true_col:
                     true_col = 'Actual Risk Score'
                     db_df[true_col] = np.nan 
@@ -635,11 +635,11 @@ elif app_view == "📊 Travel Data Analytics":
                     
                     compare_df = pd.DataFrame({
                         'AI Predicted Score': clean_predicted,
-                        'Mathematical Baseline / Reality': clean_actual
+                        'calculated_baseline_risk': clean_actual
                     }).dropna()
                     
                     if not compare_df.empty:
-                        mae = (compare_df['AI Predicted Score'] - compare_df['Mathematical Baseline / Reality']).abs().mean()
+                        mae = (compare_df['AI Predicted Score'] - compare_df['calculated_baseline_risk']).abs().mean()
                         
                         comp_col1, comp_col2 = st.columns([1, 2])
                         with comp_col1:
@@ -659,7 +659,7 @@ elif app_view == "📊 Travel Data Analytics":
                             fig = px.line(
                                 compare_df, 
                                 x='Trip Sequence', 
-                                y=['AI Predicted Score', 'Mathematical Baseline / Reality'],
+                                y=['AI Predicted Score', 'calculated_baseline_risk'],
                                 markers=show_dots 
                             )
                             
