@@ -17,23 +17,18 @@ from summary import generate_semantic_narrative
 from budget_ui import render_budget_tab          
 
 
-# --- 1. INITIALIZE & LOAD ENV VARS ---
+# This MUST be the first Streamlit command
+st.set_page_config(page_title="SafeTravels | Smart Route Planner", page_icon="🚗", layout="wide")
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+load_dotenv() # Keeps other local .env stuff working (like your database)
 
-# 🔒 THE SECURE PATH FIX
-# This tells Python to go up one folder (from 'frontend' to your main folder) to find the .env file
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-env_path = os.path.join(BASE_DIR, '.env')
-
-# Force load that specific .env file
-load_dotenv(env_path)
-
-# Now safely grab the key
-ORS_API_KEY = os.getenv("ORS_API_KEY")
-
-# Failsafe to warn you if the path is STILL wrong
-if not ORS_API_KEY:
-    st.error(f"⚠️ Could not find .env file at: {env_path}")
+# 🔒 THE SECURE STREAMLIT SECRETS WAY
+try:
+    # Streamlit will automatically find .streamlit/secrets.toml
+    ORS_API_KEY = st.secrets["ORS_API_KEY"]
+except Exception:
+    ORS_API_KEY = None
 
 
 
