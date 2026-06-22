@@ -21,7 +21,7 @@
 
 ## 📸 App Preview
 
-![SafeTravels Plan Your Trip](images/plan_your_trip.png)
+![SafeTravel-ML-Engine](images/plan_your_trip.png)
 
 ---
 
