@@ -21,16 +21,21 @@ from budget_ui import render_budget_tab
 load_dotenv(find_dotenv(), override=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-# 🛡️ THE ULTIMATE FAILSAFE KEY LOADER
-# 1. Try Streamlit Secrets first (Best Practice)
-try:
-    ORS_API_KEY = st.secrets.get("ORS_API_KEY")
-except Exception:
-    ORS_API_KEY = None
+# 🔒 THE SECURE PATH FIX
+# This tells Python to go up one folder (from 'frontend' to your main folder) to find the .env file
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+env_path = os.path.join(BASE_DIR, '.env')
 
-# 2. Try standard OS environment/dotenv second
+# Force load that specific .env file
+load_dotenv(env_path)
+
+# Now safely grab the key
+ORS_API_KEY = os.getenv("ORS_API_KEY")
+
+# Failsafe to warn you if the path is STILL wrong
 if not ORS_API_KEY:
-    ORS_API_KEY = os.getenv("ORS_API_KEY")
+    st.error(f"⚠️ Could not find .env file at: {env_path}")
+
 
 
 st.set_page_config(page_title="SafeTravels | Smart Route Planner", page_icon="🚗", layout="wide")
