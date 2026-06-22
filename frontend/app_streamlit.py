@@ -8,6 +8,7 @@ import gspread
 import pydeck as pdk
 import json
 import base64
+from streamlit_gsheets import GSheetsConnection
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from dotenv import load_dotenv
@@ -71,38 +72,40 @@ def get_gspread_client():
         logging.error(f"Auth Error: {e}")
     return None
 
+# ==========================================================
+# 📊 NATIVE STREAMLIT SHEETS CONNECTION LOGIC
+# ==========================================================
+
 def fetch_budget_cloud_logs():
-    client = get_gspread_client()
-    if not client: return None
     try:
-        # 🛠️ FIX: Use SPREADSHEET_NAME instead of the hardcoded URL
-        try:
-            sheet = client.open_by_url(SPREADSHEET_LINK)
-        except Exception:
-            sheet = client.open(SPREADSHEET_NAME)
-            
-        worksheet = sheet.worksheet("budget_forecasts")
-        records = worksheet.get_all_records()
-        return pd.DataFrame(records) if records else pd.DataFrame()
+        # Connect using the native Streamlit GSheetsConnection
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        # Read the 'budget_forecasts' tab directly into a DataFrame
+        df = conn.read(worksheet="budget_forecasts", usecols=list(range(10)))
+        
+        # Clean up empty rows that Google Sheets sometimes adds
+        df = df.dropna(how='all')
+        return df if not df.empty else pd.DataFrame()
+        
     except Exception as e:
-        logging.error(f"Error fetching budget logs: {e}")
+        logging.error(f"Streamlit Connection Error (Budget): {e}")
         return None
 
 def fetch_cloud_prediction_logs():
-    client = get_gspread_client()
-    if not client: return None
     try:
-        # 🛠️ FIX: Use SPREADSHEET_NAME instead of the hardcoded URL
-        try:
-            sheet = client.open_by_url(SPREADSHEET_LINK)
-        except Exception:
-            sheet = client.open(SPREADSHEET_NAME)
-            
-        worksheet = sheet.worksheet(WORKSHEET_NAME)
-        records = worksheet.get_all_records()
-        return pd.DataFrame(records) if records else pd.DataFrame()
+        # Connect using the native Streamlit GSheetsConnection
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        # Read the risk predictions tab directly into a DataFrame
+        df = conn.read(worksheet=WORKSHEET_NAME, usecols=list(range(15)))
+        
+        # Clean up empty rows
+        df = df.dropna(how='all')
+        return df if not df.empty else pd.DataFrame()
+        
     except Exception as e:
-        logging.error(f"Error fetching prediction logs: {e}")
+        logging.error(f"Streamlit Connection Error (Risk): {e}")
         return None
 
 def write_cloud_prediction_log(row_data: list):
