@@ -1,4 +1,3 @@
-# summary.py
 import random
 import logging
 
@@ -11,6 +10,11 @@ THRESHOLDS = {
 
 SEMANTIC_LIBRARY = {
     "weather": {
+        "no_rain": [
+            "Skies are clear with no expected rainfall.",
+            "Dry conditions along the route.",
+            "Zero precipitation detected on the radar."
+        ],
         "light_rain": [
             "Expect a little light rain ({rain:.1f} mm) along the way.",
             "Weather is mostly clear with minor damp patches ({rain:.1f} mm).",
@@ -57,8 +61,8 @@ SEMANTIC_LIBRARY = {
             "Gusty wind warnings ({wind_speed:.1f} km/h) require a firm grip on the steering wheel."
         ],
         "normal": [
-            "Winds are calm and well within safe limits.",
-            "Air movement along the corridor is normal."
+            "Winds are calm ({wind_speed:.1f} km/h) and well within safe limits.",
+            "Air movement along the corridor is a normal {wind_speed:.1f} km/h."
         ]
     },
     "interpretation": {
@@ -111,10 +115,11 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
         elif "elevated" in tier_clean or "severe" in tier_clean: mapped_tier = "Elevated"
         else: mapped_tier = "Critical"
 
-        # Router Selections
+        # Router Selections with the "No Rain" fix
         if safe_features["rain"] >= THRESHOLDS["rain"]["heavy"]: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["heavy_rain"])
         elif safe_features["rain"] >= THRESHOLDS["rain"]["moderate"]: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["moderate_rain"])
-        else: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["light_rain"])
+        elif safe_features["rain"] > 0.1: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["light_rain"])
+        else: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["no_rain"])
 
         if safe_features["temp_max"] <= THRESHOLDS["temperature"]["cold"]: temp_txt = random.choice(SEMANTIC_LIBRARY["temperature"]["cold"])
         elif safe_features["temp_max"] >= THRESHOLDS["temperature"]["hot"]: temp_txt = random.choice(SEMANTIC_LIBRARY["temperature"]["hot"])
@@ -147,7 +152,7 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
         if safe_features["rain"] > 0: drivers.append(f"   * 🌧️ Rain Level: {safe_features['rain']:.1f} mm")
         if is_mountain: drivers.append(f"   * ⛰️ Altitude: {safe_features['elevation']:.0f} m")
         if safe_features["wind_speed"] > 0: drivers.append(f"   * 💨 Wind Speed: {safe_features['wind_speed']:.1f} km/h")
-        risk_drivers_output = "\n".join(drivers) if drivers else "   * None"
+        risk_drivers_output = "\n".join(drivers) if drivers else "   * None detected"
 
         # Final Clean Layout Assembly
         final_markdown_block = (

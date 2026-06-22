@@ -644,73 +644,61 @@ elif app_view == "📊 Travel Data Analytics":
                 st.write("---")
                 st.markdown("#### ⚖️ AI Accuracy & Model Truth Comparison")
                 
-                # --- DYNAMIC SAFE COLUMN LOGIC ---
-                true_col = next((c for c in ['Calculated Baseline Risk', 'actual_score', 'Actual Risk Score', 'True Score'] if c in db_df.columns), None)
+                # 🛡️ 1. STRIP HIDDEN SPACES FROM HEADERS
+                db_df.columns = db_df.columns.str.strip()
+                
+                # 2. FIND THE COLUMNS
+                true_col = next((c for c in ['calculated_baseline_risk', 'Calculated Baseline Risk', 'actual_score'] if c in db_df.columns), None)
                 
                 if not true_col:
-                    true_col = 'Calculated Baseline Risk'
-                    db_df[true_col] = np.nan 
-
-                db_df[true_col] = pd.to_numeric(db_df[true_col], errors='coerce')
-                
-                if score_col:
+                    st.warning(f"⚠️ Could not find the baseline column! Headers found: {db_df.columns.tolist()}")
+                elif not score_col:
+                    st.warning(f"⚠️ Could not find the AI prediction column! Headers found: {db_df.columns.tolist()}")
+                else:
                     import plotly.express as px
                     
-                    clean_predicted = pd.to_numeric(db_df[score_col], errors='coerce')
+                    # 3. EXTRACT AND CLEAN THE DATA
+                    db_df[score_col] = pd.to_numeric(db_df[score_col], errors='coerce')
+                    db_df[true_col] = pd.to_numeric(db_df[true_col], errors='coerce')
                     
-                    # 1. Determine the label dynamically
-                    baseline_label = true_col if (true_col and true_col in db_df.columns) else "Calculated Baseline Risk"
-                    
-                    # 2. Safely get the numeric data or set to 0 if not found
-                    if true_col and true_col in db_df.columns:
-                        clean_actual = pd.to_numeric(db_df[true_col], errors='coerce')
-                    else:
-                        st.error(f"⚠️ Column '{true_col}' not found! The available columns are: {db_df.columns.tolist()}")
-                        clean_actual = pd.Series([0] * len(db_df))
-
-                    # 3. Create DataFrame safely
                     compare_df = pd.DataFrame({
-                        'AI Predicted Score': clean_predicted,
-                        baseline_label: clean_actual
+                        'AI Predicted Score': db_df[score_col],
+                        'Mathematical Truth': db_df[true_col]
                     }).dropna()
                     
                     if not compare_df.empty:
-                        mae = (compare_df['AI Predicted Score'] - compare_df[baseline_label]).abs().mean()
+                        mae = (compare_df['AI Predicted Score'] - compare_df['Mathematical Truth']).abs().mean()
                         
                         comp_col1, comp_col2 = st.columns([1, 2])
                         with comp_col1:
                             st.metric(label="🎯 Mean Absolute Error (MAE)", value=f"{mae:.2f} pts", delta="Lower is better", delta_color="inverse")
-                            st.caption("Average difference between the AI prediction and the baseline.")
+                            st.caption("Average difference between the AI prediction and the mathematical baseline.")
                             st.metric(label="✅ Validated Trips", value=len(compare_df))
                             
                         with comp_col2:
                             st.markdown("**AI Prediction vs. Baseline Trend**")
-                            
                             compare_df['Trip Sequence'] = range(1, len(compare_df) + 1)
                             show_dots = len(compare_df) <= 10 
                             
                             fig = px.line(
                                 compare_df, 
                                 x='Trip Sequence', 
-                                y=['AI Predicted Score', baseline_label], 
+                                y=['AI Predicted Score', 'Mathematical Truth'], 
                                 markers=show_dots 
                             )
-                            
                             fig.update_layout(
                                 legend_title_text='', 
                                 xaxis_title="Recent Searches (Chronological)", 
                                 yaxis_title="Risk Score",
                                 yaxis_range=[min(compare_df['AI Predicted Score'].min(), 10), compare_df['AI Predicted Score'].max() + 5]
                             )
-                            
-                            fig.update_xaxes(rangeslider_visible=True)
                             st.plotly_chart(fig, use_container_width=True)
                     else:
-                        st.info("💡 Waiting for validation data.")
+                        st.info("💡 Data found, but predictions or baselines are blank (NaN). Run a new search to generate paired data!")
 
-                else:
-                    st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
-
+        # This catches the empty database state
+        else:
+            st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
     with tab_budget_analytics:
         st.header("💸 AI Financial Forecasting Insights")
         
