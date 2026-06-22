@@ -73,6 +73,37 @@ def get_gspread_client(): # 👈 RENAMED BACK TO MATCH YOUR FILE
     except Exception as e:
         logging.error(f"Google Auth Failed: {e}")
         return None
+    
+
+def get_mathematical_ground_truth(telemetry):
+    """
+    Matches your exact backend logic to ensure the math baseline
+    in the spreadsheet is 100% accurate.
+    """
+    # Helper to get values with defaults to avoid errors
+    def get_val(key, default=0.0):
+        return float(telemetry.get(key, default))
+
+    # Weather
+    rain_comp = min((get_val('rain') / 50.0) * 50.0, 50.0)
+    snow_comp = min((get_val('snowfall') / 20.0) * 30.0, 30.0)
+    wind_comp = min((get_val('wind_speed') / 40.0) * 20.0, 20.0)
+    weather_hazard = min(rain_comp + snow_comp + wind_comp, 100.0)
+    
+    # Landslide
+    dist_factor = 100.0 / (get_val('nearest_landslide_km') + 1.0)
+    dens_factor = get_val('landslide_density_per_1000sqkm') * 50.0
+    terr_factor = get_val('mountain_flag') * 20.0
+    landslide_hazard = min((dist_factor * 0.4) + (dens_factor * 0.3) + (terr_factor * 0.3), 100.0)
+    
+    # Crowd
+    crowd_hazard = min(get_val('crowd_baseline') + get_val('festival_boost') + (get_val('school_vacation_flag') * 10.0), 100.0)
+    
+    # Transport
+    transport_hazard = min((get_val('transport_complexity_score') * 0.5) + (get_val('budget_stress_index') * 0.3) + (get_val('elevation_penalty') * 0.2), 100.0)
+    
+    # Composite
+    return round((weather_hazard * 0.35) + (landslide_hazard * 0.25) + (crowd_hazard * 0.20) + (transport_hazard * 0.20), 2)
 
 # ==========================================================
 # 📊 CLOUD DATA FETCHING (Using Bulletproof gspread)
@@ -450,6 +481,10 @@ if app_view == "🔮 Route Risk Checker":
                     c_math = float(telemetry.get('crowd_baseline', 45) + telemetry.get('festival_boost', 0))
                     
                     math_score = round(w_math + t_math + c_math, 2)
+
+                    # 1. CALCULATE THE REAL TRUTH using the function above
+                    telemetry = st.session_state.get("latest_telemetry", {})
+                    math_score = get_mathematical_ground_truth(telemetry)
                     
                     # 2. LOGGING PAYLOAD (Math Score inserted into the slot where "" used to be)
                     sheet_row_payload = [
@@ -459,7 +494,7 @@ if app_view == "🔮 Route Risk Checker":
                         float(dest_lat or 0.0),
                         float(dest_lon or 0.0),
                         round(float(score or 0.0), 2),
-                        math_score, # 👈 MATHEMATICAL GROUND TRUTH IS NOW HERE!
+                        math_score, # 👈 THIS IS NOW THE TRUE MATH SCORE
                         tier,
                         res_data.get("destination_type", "General"),
                         res_data.get("destination_description", "N/A"),
@@ -467,7 +502,6 @@ if app_view == "🔮 Route Risk Checker":
                         target_date_str,
                         json.dumps(telemetry)
                     ]
-                    
                     write_cloud_prediction_log(sheet_row_payload)
 
                     # 3. Update session history
