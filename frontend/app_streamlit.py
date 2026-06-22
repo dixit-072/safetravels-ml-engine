@@ -23,7 +23,7 @@ st.set_page_config(page_title="SafeTravels | Smart Route Planner", page_icon="�
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 load_dotenv() # Keeps other local .env stuff working (like your database)
 
-# 🔒 THE SECURE STREAMLIT SECRETS WAY
+#  THE SECURE STREAMLIT SECRETS WAY
 try:
     # Streamlit will automatically find .streamlit/secrets.toml
     ORS_API_KEY = st.secrets["ORS_API_KEY"]
@@ -652,7 +652,6 @@ elif app_view == "📊 Travel Data Analytics":
                     db_df[true_col] = np.nan 
 
                 db_df[true_col] = pd.to_numeric(db_df[true_col], errors='coerce')
-                db_df[true_col] = db_df[true_col].fillna((pd.to_numeric(db_df[score_col], errors='coerce') * 0.93) + 3.2)
                 
                 if score_col:
                     import plotly.express as px
