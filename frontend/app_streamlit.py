@@ -16,8 +16,12 @@ from dotenv import load_dotenv
 from summary import generate_semantic_narrative  
 from budget_ui import render_budget_tab          
 
+# --- 1. INITIALIZE & LOAD ENV VARS ---
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+# Load your ORS API Key right at the top
+ORS_API_KEY = os.getenv("ORS_API_KEY")
 
 st.set_page_config(page_title="SafeTravels | Smart Route Planner", page_icon="🚗", layout="wide")
 
@@ -25,6 +29,7 @@ FASTAPI_URL = "https://safetravels-ml-engine.onrender.com/predict"
 HEALTH_URL = "https://safetravels-ml-engine.onrender.com/health"
 MAX_HISTORY = 20
 
+# --- 2. SETUP GOOGLE SHEETS LOCATIONS ---
 try:
     SPREADSHEET_LINK = st.secrets.get("spreadsheet", "https://docs.google.com/spreadsheets/d/1KFiu3DzOSlDGEsh4vCYnfdUd6Po-0qL3CttLbe7wm1Q/edit")
     if st.secrets.get("SPREADSHEET_NAME"):
@@ -45,19 +50,18 @@ st.sidebar.title("🎮 Menu Options")
 app_view = st.sidebar.radio("Switch Dashboard View:", ["🔮 Route Risk Checker", "📊 Travel Data Analytics"])
 st.sidebar.markdown("---")
 
+# --- 3. HELPER FUNCTIONS ---
 @st.cache_resource(ttl=600) 
 def get_gspread_client(): 
     try:
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         
-        # 1. Try local file first (for testing on your computer)
         if os.path.exists("google_creds.json"):
             with open("google_creds.json") as f:
                 creds_dict = json.load(f)
             credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             return gspread.authorize(credentials)
             
-        # 2. Try Base64 from Streamlit Secrets (for production cloud)
         elif "GCP_CREDS_B64" in st.secrets:
             b64_token = st.secrets["GCP_CREDS_B64"]
             clean_token = str(b64_token).strip().replace('"', '').replace("'", "")
@@ -76,10 +80,6 @@ def get_gspread_client():
     
 
 def get_mathematical_ground_truth(telemetry):
-    """
-    Matches your exact backend logic to ensure the math baseline
-    in the spreadsheet is 100% accurate.
-    """
     def get_val(key, default=0.0):
         return float(telemetry.get(key, default))
 
@@ -102,7 +102,6 @@ def get_mathematical_ground_truth(telemetry):
 def fetch_budget_cloud_logs():
     client = get_gspread_client() 
     if not client: return pd.DataFrame()
-    
     try:
         sheet = client.open_by_url(SPREADSHEET_LINK)
         worksheet = sheet.worksheet("budget_forecasts")
@@ -116,7 +115,6 @@ def fetch_budget_cloud_logs():
 def fetch_cloud_prediction_logs():
     client = get_gspread_client() 
     if not client: return pd.DataFrame()
-    
     try:
         sheet = client.open_by_url(SPREADSHEET_LINK)
         worksheet = sheet.worksheet(WORKSHEET_NAME)
@@ -187,6 +185,7 @@ def check_backend_online(url):
 CORE_DESTINATIONS = load_cached_destinations()
 BACKEND_ONLINE = check_backend_online(HEALTH_URL)
 
+# --- 4. MAIN DASHBOARD UI ---
 if app_view == "🔮 Route Risk Checker":
     st.title("🚗 SafeTravels AI Engine")
     st.markdown("### Smart Weather, Terrain & Financial Analysis System")
@@ -292,6 +291,7 @@ if app_view == "🔮 Route Risk Checker":
                     except Exception as e:
                         st.error(f"🛑 Connection Timeout: Details: {e}")
 
+        # --- 5. RENDER ROUTE RESULTS ---
         if "saved_risk_report" in st.session_state:
             res_data = st.session_state["saved_risk_report"]
             is_test_mode = st.session_state["saved_is_test"]
@@ -336,15 +336,49 @@ if app_view == "🔮 Route Risk Checker":
                     st.subheader("📊 Current Live Conditions")
                     st.success(f"📍 Location Confirmed: **{res_data.get('resolved_name')}**" if not is_test_mode else "📍 Location Confirmed: Manali (SIMULATED FORCING)")
                     
-                    # 🏔️ ADJUSTED DISTANCE LOGIC (Solves the straight-line Haversine issue)
-                    raw_dist = float(res_data.get('route_distance_km', 0))
-                    raw_dur = float(res_data.get('route_duration_hrs', 0))
+                    # 🗺️ OPEN ROUTES SERVICE (ORS) API INTEGRATION
+                    dest_lat = float(res_data.get("latitude", 0.0))
+                    dest_lon = float(res_data.get("longitude", 0.0))
                     
-                    is_mountain = "Mountain" in res_data.get("destination_type", "")
-                    dist_multiplier = 1.8 if is_mountain else 1.2
+                    # Get source coordinates. If missing from backend, default to New Delhi to prevent crash
+                    src_lat = float(telemetry.get("source_lat", 28.6139)) 
+                    src_lon = float(telemetry.get("source_lon", 77.2090))
                     
-                    adjusted_dist = round(raw_dist * dist_multiplier, 1)
-                    adjusted_dur = round(raw_dur * dist_multiplier, 1)
+                    adjusted_dist = 0.0
+                    adjusted_dur = 0.0
+                    
+                    # 1. Check if the API Key actually loaded from .env
+                    if not ORS_API_KEY:
+                        st.warning("⚠️ ERROR: ORS_API_KEY is not loading from your .env file!")
+                    # 2. Check if coordinates are valid
+                    elif src_lat == 0.0 or dest_lat == 0.0:
+                        st.warning("⚠️ ERROR: Missing GPS coordinates from backend.")
+                    else:
+                        try:
+                            # 3. Pass the API key directly in the URL (More reliable than headers)
+                            ors_url = f"https://api.openrouteservice.org/v2/directions/driving-car?api_key={ORS_API_KEY}&start={src_lon},{src_lat}&end={dest_lon},{dest_lat}"
+                            
+                            route_res = requests.get(ors_url, timeout=5)
+                            
+                            if route_res.status_code == 200:
+                                route_data = route_res.json()
+                                if "features" in route_data and len(route_data["features"]) > 0:
+                                    summary = route_data["features"][0]["properties"]["summary"]
+                                    adjusted_dist = round(summary["distance"] / 1000, 1) 
+                                    adjusted_dur = round(summary["duration"] / 3600, 1)
+                            else:
+                                # Show the exact API rejection reason on screen
+                                st.warning(f"⚠️ ORS API Failed (Code {route_res.status_code}): {route_res.text}")
+                        except Exception as e:
+                            st.warning(f"⚠️ API Request Crash: {e}")
+                            
+                    # Fallback failsafe
+                    if adjusted_dist == 0.0:
+                        raw_dist = float(res_data.get('route_distance_km', 0))
+                        raw_dur = float(res_data.get('route_duration_hrs', 0))
+                        dist_mult = 1.8 if "Mountain" in res_data.get("destination_type", "") else 1.2
+                        adjusted_dist = round(raw_dist * dist_mult, 1)
+                        adjusted_dur = round(raw_dur * dist_mult, 1)
 
                     st.markdown(f"🛣️ **Route Planner:** {res_data.get('source_name', 'Origin')} ➔ {res_data.get('resolved_name')}")
                     st.markdown(f"📏 **Driving Distance:** {adjusted_dist} km (Approx {adjusted_dur} hours)")
