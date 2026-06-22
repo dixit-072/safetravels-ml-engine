@@ -438,26 +438,21 @@ if app_view == "🔮 Route Risk Checker":
 
                         # 🗺️ 2. THE WOW FACTOR: Draw the winding roads!
                         if route_coordinates:
-                            # If we have the ORS data, trace the exact physical road
-                            path_data = pd.DataFrame({"path": [route_coordinates]})
+                            # 🛡️ FIX 1: Pass the data as a pure Python dictionary list instead of a DataFrame
                             route_layer = pdk.Layer(
                                 "PathLayer",
-                                data=path_data,
+                                data=[{"path": route_coordinates}], 
                                 get_path="path",
-                                get_color=[52, 152, 219, 200], # Sleek blue route
+                                get_color=[52, 152, 219, 255], 
                                 width_scale=20,
-                                width_min_pixels=4,
+                                width_min_pixels=5,
                                 get_width=5
                             )
                         else:
-                            # Failsafe: If the API fails, fall back to the straight line
-                            line_data = pd.DataFrame({
-                                "start": [[src_lon, src_lat]],
-                                "end": [[dest_lon, dest_lat]]
-                            })
+                            # Failsafe Fallback
                             route_layer = pdk.Layer(
                                 "LineLayer",
-                                data=line_data,
+                                data=[{"start": [src_lon, src_lat], "end": [dest_lon, dest_lat]}],
                                 get_source_position="start",
                                 get_target_position="end",
                                 get_color=[52, 152, 219, 180],
@@ -465,12 +460,13 @@ if app_view == "🔮 Route Risk Checker":
                             )
 
                         # 3. Render the 3D Canvas
-                        view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=6.5, pitch=45) # Tilted 45 degrees for a cool 3D effect!
+                        view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=6.5, pitch=45) 
                         
                         r = pdk.Deck(
                             layers=[route_layer, scatter_layer], 
                             initial_view_state=view_state, 
-                            map_style="mapbox://styles/mapbox/dark-v11", # Changed to a sleek dark map!
+                            # 🛡️ FIX 2: Use Streamlit's built-in "dark" theme which requires NO API key
+                            map_style="dark", 
                             tooltip={"text": "{name}"}
                         )
                         st.pydeck_chart(r)
