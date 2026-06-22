@@ -628,55 +628,52 @@ elif app_view == "📊 Travel Data Analytics":
                     
                     clean_predicted = pd.to_numeric(db_df[score_col], errors='coerce')
                     
-                    # MATHEMATICAL BASELINE: Simulate the heuristic score
-                    math_baseline = (clean_predicted * 0.93) + 3.2 
+                    # 1. Determine the label and data dynamically to prevent KeyErrors
+                    baseline_label = true_col if (true_col and true_col in db_df.columns) else "Calculated Baseline Risk"
                     
-                    clean_actual = pd.to_numeric(db_df[true_col], errors='coerce')# No fillna needed!
-                    
+                    # 2. Safely get the numeric data or set to 0 if not found
+                    if true_col and true_col in db_df.columns:
+                        clean_actual = pd.to_numeric(db_df[true_col], errors='coerce')
+                    else:
+                        st.error(f"⚠️ Column '{true_col}' not found! Check your Google Sheet headers.")
+                        clean_actual = pd.Series([0] * len(db_df))
+
+                    # 3. Create DataFrame using the dynamic label
                     compare_df = pd.DataFrame({
                         'AI Predicted Score': clean_predicted,
-                        'calculated_baseline_risk': clean_actual
+                        baseline_label: clean_actual
                     }).dropna()
                     
                     if not compare_df.empty:
-                        mae = (compare_df['AI Predicted Score'] - compare_df['calculated_baseline_risk']).abs().mean()
+                        mae = (compare_df['AI Predicted Score'] - compare_df[baseline_label]).abs().mean()
                         
                         comp_col1, comp_col2 = st.columns([1, 2])
                         with comp_col1:
                             st.metric(label="🎯 Mean Absolute Error (MAE)", value=f"{mae:.2f} pts", delta="Lower is better", delta_color="inverse")
-                            st.caption("Average difference between the AI prediction and the calculated mathematical baseline.")
+                            st.caption("Average difference between the AI prediction and the baseline.")
                             st.metric(label="✅ Validated Trips", value=len(compare_df))
                             
                         with comp_col2:
                             st.markdown("**AI Prediction vs. Baseline Trend**")
                             
-                            # 1. Use numeric integers instead of strings so the X-axis auto-scales cleanly
                             compare_df['Trip Sequence'] = range(1, len(compare_df) + 1)
-                            
-                            # 2. Dynamic markers: ON for < 10 trips (fixes the 1-trip bug), OFF for large datasets
                             show_dots = len(compare_df) <= 10 
                             
                             fig = px.line(
                                 compare_df, 
                                 x='Trip Sequence', 
-                                y=['AI Predicted Score', 'calculated_baseline_risk'],
+                                y=['AI Predicted Score', baseline_label], 
                                 markers=show_dots 
                             )
                             
-                            # 3. Clean up the labels and Y-axis range
                             fig.update_layout(
                                 legend_title_text='', 
                                 xaxis_title="Recent Searches (Chronological)", 
                                 yaxis_title="Risk Score",
-                                yaxis_range=[
-                                    min(compare_df['AI Predicted Score'].min(), 10), 
-                                    compare_df['AI Predicted Score'].max() + 5
-                                ]
+                                yaxis_range=[min(compare_df['AI Predicted Score'].min(), 10), compare_df['AI Predicted Score'].max() + 5]
                             )
                             
-                            # 4. ADD RANGE SLIDER for deep-dive analysis of large datasets
                             fig.update_xaxes(rangeslider_visible=True)
-                            
                             st.plotly_chart(fig, use_container_width=True)
                     else:
                         st.info("💡 Waiting for validation data.")
