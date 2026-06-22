@@ -78,13 +78,15 @@ def get_gspread_client():
 
 def fetch_budget_cloud_logs():
     try:
-        # Connect using the native Streamlit GSheetsConnection
         conn = st.connection("gsheets", type=GSheetsConnection)
         
-        # Read the 'budget_forecasts' tab directly into a DataFrame
-        df = conn.read(worksheet="budget_forecasts", usecols=list(range(10)))
+        # 🛠️ FIX: Explicitly hand the spreadsheet URL/Name to the reader
+        df = conn.read(
+            spreadsheet=SPREADSHEET_LINK, # Uses the variable you already defined at the top of your file
+            worksheet="budget_forecasts", 
+            usecols=list(range(10))
+        )
         
-        # Clean up empty rows that Google Sheets sometimes adds
         df = df.dropna(how='all')
         return df if not df.empty else pd.DataFrame()
         
@@ -94,13 +96,15 @@ def fetch_budget_cloud_logs():
 
 def fetch_cloud_prediction_logs():
     try:
-        # Connect using the native Streamlit GSheetsConnection
         conn = st.connection("gsheets", type=GSheetsConnection)
         
-        # Read the risk predictions tab directly into a DataFrame
-        df = conn.read(worksheet=WORKSHEET_NAME, usecols=list(range(15)))
+        # 🛠️ FIX: Explicitly hand the spreadsheet URL/Name to the reader
+        df = conn.read(
+            spreadsheet=SPREADSHEET_LINK, 
+            worksheet=WORKSHEET_NAME, 
+            usecols=list(range(15))
+        )
         
-        # Clean up empty rows
         df = df.dropna(how='all')
         return df if not df.empty else pd.DataFrame()
         
