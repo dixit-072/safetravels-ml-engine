@@ -17,8 +17,7 @@ from summary import generate_semantic_narrative
 from budget_ui import render_budget_tab          
 
 
-# 1. INITIALIZE & LOAD ENV VARS (Actively searches for .env in all folders)
-load_dotenv(find_dotenv(), override=True)
+# --- 1. INITIALIZE & LOAD ENV VARS ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 # 🔒 THE SECURE PATH FIX
