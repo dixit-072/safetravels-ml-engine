@@ -666,8 +666,8 @@ elif app_view == "📊 Travel Data Analytics":
                     else:
                         st.info("💡 Waiting for validation data.")
 
-            else:
-                st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
+                else:
+                    st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
 
     with tab_budget_analytics:
         st.header("💸 AI Financial Forecasting Insights")
