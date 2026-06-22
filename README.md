@@ -19,6 +19,12 @@
 
 ---
 
+## 📸 App Preview
+
+![SafeTravels Plan Your Trip](images/plan_your_trip.png)
+
+---
+
 ## 📸 What It Does
 
 | Input | Processing | Output |
