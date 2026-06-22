@@ -45,8 +45,8 @@ st.sidebar.title("🎮 Menu Options")
 app_view = st.sidebar.radio("Switch Dashboard View:", ["🔮 Route Risk Checker", "📊 Travel Data Analytics"])
 st.sidebar.markdown("---")
 
-@st.cache_resource(ttl=600)  # Caches the login so it doesn't slow down your app
-def get_gspread_client(): # 👈 RENAMED BACK TO MATCH YOUR FILE
+@st.cache_resource(ttl=600) 
+def get_gspread_client(): 
     try:
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         
@@ -80,37 +80,27 @@ def get_mathematical_ground_truth(telemetry):
     Matches your exact backend logic to ensure the math baseline
     in the spreadsheet is 100% accurate.
     """
-    # Helper to get values with defaults to avoid errors
     def get_val(key, default=0.0):
         return float(telemetry.get(key, default))
 
-    # Weather
     rain_comp = min((get_val('rain') / 50.0) * 50.0, 50.0)
     snow_comp = min((get_val('snowfall') / 20.0) * 30.0, 30.0)
     wind_comp = min((get_val('wind_speed') / 40.0) * 20.0, 20.0)
     weather_hazard = min(rain_comp + snow_comp + wind_comp, 100.0)
     
-    # Landslide
     dist_factor = 100.0 / (get_val('nearest_landslide_km') + 1.0)
     dens_factor = get_val('landslide_density_per_1000sqkm') * 50.0
     terr_factor = get_val('mountain_flag') * 20.0
     landslide_hazard = min((dist_factor * 0.4) + (dens_factor * 0.3) + (terr_factor * 0.3), 100.0)
     
-    # Crowd
     crowd_hazard = min(get_val('crowd_baseline') + get_val('festival_boost') + (get_val('school_vacation_flag') * 10.0), 100.0)
     
-    # Transport
     transport_hazard = min((get_val('transport_complexity_score') * 0.5) + (get_val('budget_stress_index') * 0.3) + (get_val('elevation_penalty') * 0.2), 100.0)
     
-    # Composite
     return round((weather_hazard * 0.35) + (landslide_hazard * 0.25) + (crowd_hazard * 0.20) + (transport_hazard * 0.20), 2)
 
-# ==========================================================
-# 📊 CLOUD DATA FETCHING (Using Bulletproof gspread)
-# ==========================================================
-
 def fetch_budget_cloud_logs():
-    client = get_gspread_client() # 👈 MATCHES!
+    client = get_gspread_client() 
     if not client: return pd.DataFrame()
     
     try:
@@ -124,7 +114,7 @@ def fetch_budget_cloud_logs():
         return pd.DataFrame()
 
 def fetch_cloud_prediction_logs():
-    client = get_gspread_client() # 👈 MATCHES!
+    client = get_gspread_client() 
     if not client: return pd.DataFrame()
     
     try:
@@ -136,6 +126,7 @@ def fetch_cloud_prediction_logs():
     except Exception as e:
         logging.error(f"Error reading prediction tab: {e}")
         return pd.DataFrame()
+
 def write_cloud_prediction_log(row_data: list):
     client = get_gspread_client()
     if not client: return False
@@ -201,7 +192,6 @@ if app_view == "🔮 Route Risk Checker":
     st.markdown("### Smart Weather, Terrain & Financial Analysis System")
     st.write("---")
 
-    # --- 🌍 GLOBAL INPUTS (Always Visible Above Tabs) ---
     st.header("🧳 Plan Your Trip")
     
     with st.container(border=True):
@@ -345,8 +335,19 @@ if app_view == "🔮 Route Risk Checker":
                 with col_inputs:
                     st.subheader("📊 Current Live Conditions")
                     st.success(f"📍 Location Confirmed: **{res_data.get('resolved_name')}**" if not is_test_mode else "📍 Location Confirmed: Manali (SIMULATED FORCING)")
+                    
+                    # 🏔️ ADJUSTED DISTANCE LOGIC (Solves the straight-line Haversine issue)
+                    raw_dist = float(res_data.get('route_distance_km', 0))
+                    raw_dur = float(res_data.get('route_duration_hrs', 0))
+                    
+                    is_mountain = "Mountain" in res_data.get("destination_type", "")
+                    dist_multiplier = 1.8 if is_mountain else 1.2
+                    
+                    adjusted_dist = round(raw_dist * dist_multiplier, 1)
+                    adjusted_dur = round(raw_dur * dist_multiplier, 1)
+
                     st.markdown(f"🛣️ **Route Planner:** {res_data.get('source_name', 'Origin')} ➔ {res_data.get('resolved_name')}")
-                    st.markdown(f"📏 **Driving Distance:** {res_data.get('route_distance_km', 0)} km (Approx {res_data.get('route_duration_hrs', 0)} hours)")
+                    st.markdown(f"📏 **Driving Distance:** {adjusted_dist} km (Approx {adjusted_dur} hours)")
                     st.markdown(f"#### Terrain Profile: **{res_data.get('destination_type')}**")
                     st.caption(res_data.get("destination_description"))
                     st.write("")
@@ -471,22 +472,12 @@ if app_view == "🔮 Route Risk Checker":
                     current_time_str = datetime.now().strftime("%I:%M:%S %p")
                     saved_query = st.session_state.get("saved_final_query", "Unknown")
                     
-                    # 1. CALCULATE MATHEMATICAL BASELINE AUTOMATICALLY
-                    # We pull these values directly from your telemetry dictionary
                     telemetry = st.session_state.get("latest_telemetry", {})
                     
-                    # Re-deriving the components based on your original weightings
-                    w_math = float(telemetry.get('rain', 0.0) * 1.5 + telemetry.get('wind_speed', 0.0) * 0.5)
-                    t_math = float(telemetry.get('elevation_penalty', 0) * 2.0 + telemetry.get('transport_complexity_score', 0) * 0.2)
-                    c_math = float(telemetry.get('crowd_baseline', 45) + telemetry.get('festival_boost', 0))
-                    
-                    math_score = round(w_math + t_math + c_math, 2)
-
-                    # 1. CALCULATE THE REAL TRUTH using the function above
-                    telemetry = st.session_state.get("latest_telemetry", {})
+                    # 1. CALCULATE THE REAL TRUTH using the function
                     math_score = get_mathematical_ground_truth(telemetry)
                     
-                    # 2. LOGGING PAYLOAD (Math Score inserted into the slot where "" used to be)
+                    # 2. LOGGING PAYLOAD
                     sheet_row_payload = [
                         current_timestamp,
                         saved_query, 
@@ -494,7 +485,7 @@ if app_view == "🔮 Route Risk Checker":
                         float(dest_lat or 0.0),
                         float(dest_lon or 0.0),
                         round(float(score or 0.0), 2),
-                        math_score, # 👈 THIS IS NOW THE TRUE MATH SCORE
+                        math_score, 
                         tier,
                         res_data.get("destination_type", "General"),
                         res_data.get("destination_description", "N/A"),
@@ -564,21 +555,17 @@ elif app_view == "📊 Travel Data Analytics":
             loc_col = next((c for c in ['resolved_name', 'Destination Location', 'location', 'Location'] if c in db_df.columns), None)
             cat_col = next((c for c in ['risk_category', 'Safety Status Category', 'category'] if c in db_df.columns), None)
             
-            # --- 🎯 ADDED INTERACTIVE CITY SLICER ---
             if loc_col:
-                st.write("") # Quick spacing
+                st.write("") 
                 city_list = ["All Destinations"] + sorted(db_df[loc_col].astype(str).unique().tolist())
                 selected_city = st.selectbox("🎯 Filter Analytics by Destination:", options=city_list)
                 
-                # Filter the dataframe before drawing the charts!
                 if selected_city != "All Destinations":
                     db_df = db_df[db_df[loc_col] == selected_city]
-            # ----------------------------------------
             
             if db_df.empty:
                 st.warning(f"No data available for {selected_city}.")
             else:
-                # KPIs (Now dynamically calculating based on the filtered data)
                 kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
                 with kpi_col1:
                     st.metric(label="🔢 Total Safety Reports", value=f"{len(db_df)}")
@@ -614,12 +601,13 @@ elif app_view == "📊 Travel Data Analytics":
                 st.write("---")
                 st.markdown("#### ⚖️ AI Accuracy & Model Truth Comparison")
                 
-                true_col = next((c for c in ['calculated_baseline_risk', 'actual_score', 'Actual Risk Score', 'True Score'] if c in db_df.columns), None)
+                # --- DYNAMIC SAFE COLUMN LOGIC ---
+                true_col = next((c for c in ['Calculated Baseline Risk', 'actual_score', 'Actual Risk Score', 'True Score'] if c in db_df.columns), None)
+                
                 if not true_col:
-                    true_col = 'Actual Risk Score'
+                    true_col = 'Calculated Baseline Risk'
                     db_df[true_col] = np.nan 
 
-                # 2. BACKFILL LOGIC: Apply math baseline to historical empty rows
                 db_df[true_col] = pd.to_numeric(db_df[true_col], errors='coerce')
                 db_df[true_col] = db_df[true_col].fillna((pd.to_numeric(db_df[score_col], errors='coerce') * 0.93) + 3.2)
                 
@@ -628,17 +616,17 @@ elif app_view == "📊 Travel Data Analytics":
                     
                     clean_predicted = pd.to_numeric(db_df[score_col], errors='coerce')
                     
-                    # 1. Determine the label and data dynamically to prevent KeyErrors
+                    # 1. Determine the label dynamically
                     baseline_label = true_col if (true_col and true_col in db_df.columns) else "Calculated Baseline Risk"
                     
                     # 2. Safely get the numeric data or set to 0 if not found
                     if true_col and true_col in db_df.columns:
                         clean_actual = pd.to_numeric(db_df[true_col], errors='coerce')
                     else:
-                        st.error(f"⚠️ Column '{true_col}' not found! Check your Google Sheet headers.")
+                        st.error(f"⚠️ Column '{true_col}' not found! The available columns are: {db_df.columns.tolist()}")
                         clean_actual = pd.Series([0] * len(db_df))
 
-                    # 3. Create DataFrame using the dynamic label
+                    # 3. Create DataFrame safely
                     compare_df = pd.DataFrame({
                         'AI Predicted Score': clean_predicted,
                         baseline_label: clean_actual
@@ -678,9 +666,8 @@ elif app_view == "📊 Travel Data Analytics":
                     else:
                         st.info("💡 Waiting for validation data.")
 
-            # This catches the empty database state
-                else:
-                    st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
+            else:
+                st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
 
     with tab_budget_analytics:
         st.header("💸 AI Financial Forecasting Insights")
@@ -693,32 +680,25 @@ elif app_view == "📊 Travel Data Analytics":
         else:
             import plotly.express as px
             
-            # Smart column fetching
             cost_col = 'Estimated Total' if 'Estimated Total' in budget_df.columns else budget_df.columns[-3]
             stress_col = 'Stress Score (%)' if 'Stress Score (%)' in budget_df.columns else budget_df.columns[-2]
             style_col = 'Style' if 'Style' in budget_df.columns else budget_df.columns[5]
             transport_col = 'Transport' if 'Transport' in budget_df.columns else budget_df.columns[6]
             
-            # Find the Location column for the budget sheet (Usually the 2nd column)
             loc_col_budget = 'Location' if 'Location' in budget_df.columns else budget_df.columns[1]
 
-            # --- 🎯 ADDED INTERACTIVE CITY SLICER FOR BUDGET ---
             if loc_col_budget:
-                st.write("") # Quick spacing
+                st.write("") 
                 budget_city_list = ["All Destinations"] + sorted(budget_df[loc_col_budget].astype(str).unique().tolist())
                 
-                # Note the unique key="budget_city_filter" to prevent conflicts with the Risk tab!
                 selected_budget_city = st.selectbox("🎯 Filter Finances by Destination:", options=budget_city_list, key="budget_city_filter")
                 
-                # Filter the dataframe before drawing the charts!
                 if selected_budget_city != "All Destinations":
                     budget_df = budget_df[budget_df[loc_col_budget] == selected_budget_city]
-            # ----------------------------------------
 
             if budget_df.empty:
                 st.warning(f"No financial data available for {selected_budget_city}.")
             else:
-                # Clean the data to ensure math works
                 budget_df[cost_col] = pd.to_numeric(budget_df[cost_col], errors='coerce')
                 budget_df[stress_col] = pd.to_numeric(budget_df[stress_col], errors='coerce')
                 
@@ -734,7 +714,6 @@ elif app_view == "📊 Travel Data Analytics":
 
                 st.write("---")
                 
-                # 📈 1-TRIP SAFE PLOTLY CHART: Estimated Cost Trend
                 st.markdown("#### 📈 Trip Cost Estimates Over Time")
                 budget_df['Forecast Number'] = [f"Forecast {i+1}" for i in range(len(budget_df))]
                 
@@ -744,7 +723,7 @@ elif app_view == "📊 Travel Data Analytics":
                     y=cost_col,
                     markers=True,
                     line_shape="spline",
-                    color_discrete_sequence=["#2ecc71"] # A nice financial green color
+                    color_discrete_sequence=["#2ecc71"] 
                 )
                 fig_cost.update_layout(xaxis_title="", yaxis_title="Cost (INR)")
                 st.plotly_chart(fig_cost, use_container_width=True)
