@@ -631,7 +631,7 @@ elif app_view == "📊 Travel Data Analytics":
                     # MATHEMATICAL BASELINE: Simulate the heuristic score
                     math_baseline = (clean_predicted * 0.93) + 3.2 
                     
-                    clean_actual = pd.to_numeric(db_df['calculated_baseline_score'], errors='coerce') # No fillna needed!
+                    clean_actual = pd.to_numeric(db_df[true_col], errors='coerce')# No fillna needed!
                     
                     compare_df = pd.DataFrame({
                         'AI Predicted Score': clean_predicted,
