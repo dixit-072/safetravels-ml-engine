@@ -11,17 +11,18 @@ import base64
 from streamlit_gsheets import GSheetsConnection
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from summary import generate_semantic_narrative  
 from budget_ui import render_budget_tab          
 
-# --- 1. INITIALIZE & LOAD ENV VARS ---
-load_dotenv()
+
+# 1. INITIALIZE & LOAD ENV VARS (Actively searches for .env in all folders)
+load_dotenv(find_dotenv(), override=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 # Load your ORS API Key right at the top
-ORS_API_KEY = os.getenv("ORS_API_KEY")
+ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImUwMTZjMTdkZDY5MDRhMGZiNTI3ZTI3ZDdiNTE5YzQ4IiwiaCI6Im11cm11cjY0In0="
 
 st.set_page_config(page_title="SafeTravels | Smart Route Planner", page_icon="🚗", layout="wide")
 
