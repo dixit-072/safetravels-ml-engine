@@ -598,33 +598,41 @@ elif app_view == "📊 Travel Data Analytics":
                             
                         with comp_col2:
                             st.markdown("**AI Prediction vs. Baseline Trend**")
-                        
-                        # 1. Use numeric integers instead of strings so the X-axis auto-scales cleanly
-                        compare_df['Trip Sequence'] = range(1, len(compare_df) + 1)
-                        
-                        # 2. Dynamic markers: ON for < 10 trips (fixes the 1-trip bug), OFF for large datasets (removes clutter)
-                        show_dots = len(compare_df) <= 10 
-                        
-                        fig = px.line(
-                            compare_df, 
-                            x='Trip Sequence', 
-                            y=['AI Predicted Score', 'Mathematical Baseline / Reality'],
-                            markers=show_dots 
-                        )
-                        
-                        # 3. Clean up the labels
-                        fig.update_layout(
-                            legend_title_text='', 
-                            xaxis_title="Recent Searches (Chronological)", 
-                            yaxis_title="Risk Score"
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
+                            
+                            # 1. Use numeric integers instead of strings so the X-axis auto-scales cleanly
+                            compare_df['Trip Sequence'] = range(1, len(compare_df) + 1)
+                            
+                            # 2. Dynamic markers: ON for < 10 trips (fixes the 1-trip bug), OFF for large datasets
+                            show_dots = len(compare_df) <= 10 
+                            
+                            fig = px.line(
+                                compare_df, 
+                                x='Trip Sequence', 
+                                y=['AI Predicted Score', 'Mathematical Baseline / Reality'],
+                                markers=show_dots 
+                            )
+                            
+                            # 3. Clean up the labels and Y-axis range
+                            fig.update_layout(
+                                legend_title_text='', 
+                                xaxis_title="Recent Searches (Chronological)", 
+                                yaxis_title="Risk Score",
+                                yaxis_range=[
+                                    min(compare_df['AI Predicted Score'].min(), 10), 
+                                    compare_df['AI Predicted Score'].max() + 5
+                                ]
+                            )
+                            
+                            # 4. ADD RANGE SLIDER for deep-dive analysis of large datasets
+                            fig.update_xaxes(rangeslider_visible=True)
+                            
+                            st.plotly_chart(fig, use_container_width=True)
                     else:
                         st.info("💡 Waiting for validation data.")
 
-        # 👈 This is the missing piece that catches the empty database!
-        else:
-            st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
+            # This catches the empty database state
+                else:
+                    st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
 
     with tab_budget_analytics:
         st.header("💸 AI Financial Forecasting Insights")
