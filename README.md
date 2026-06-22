@@ -2,20 +2,17 @@
 
 # 🛡️ SafeTravels ML Engine
 
-### Real-Time Travel Risk Prediction using Machine Learning
-
-FastAPI • Streamlit • Scikit-Learn • Weather Risk Analysis • Route Safety Prediction
+### Real-Time Travel Risk Prediction · FastAPI + Streamlit + Scikit-Learn
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.25+-FF4B4B.svg)](https://streamlit.io/)
 [![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-F7931E.svg)](https://scikit-learn.org/)
 [![Render](https://img.shields.io/badge/Backend-Render-46E3B7.svg)](https://render.com/)
-
-### 🚀 Live Demo
-🔗 https://dixit-072-safetravels-ml-engine-frontendapp-streamlit-lzmyho.streamlit.app/
+[![Live App](https://img.shields.io/badge/Live%20App-Streamlit%20Cloud-FF4B4B.svg)](https://dixit-072-safetravels-ml-engine-frontendapp-streamlit-lzmyho.streamlit.app/)
 
 </div>
+
 
 **SafeTravels** is an end-to-end ML pipeline that predicts real-time travel risk scores (0–100%) by fusing live meteorological data with geographical terrain analysis. Enter any destination, and the system fetches live weather telemetry, runs it through a trained classifier, and returns a deterministic hazard rating with travel advisories.
 
