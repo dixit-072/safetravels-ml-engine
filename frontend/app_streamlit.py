@@ -349,24 +349,20 @@ if app_view == "🔮 Route Risk Checker":
                     dest_lat = float(res_data.get("latitude", 0.0))
                     dest_lon = float(res_data.get("longitude", 0.0))
                     
-                    # Get source coordinates. If missing from backend, default to New Delhi to prevent crash
                     src_lat = float(telemetry.get("source_lat", 28.6139)) 
                     src_lon = float(telemetry.get("source_lon", 77.2090))
                     
                     adjusted_dist = 0.0
                     adjusted_dur = 0.0
+                    route_coordinates = [] # 🌟 NEW: This will hold our winding road map data!
                     
-                    # 1. Check if the API Key actually loaded from .env
                     if not ORS_API_KEY:
-                        st.warning("⚠️ ERROR: ORS_API_KEY is not loading from your .env file!")
-                    # 2. Check if coordinates are valid
+                        st.warning("⚠️ ERROR: ORS_API_KEY is not loading from secrets!")
                     elif src_lat == 0.0 or dest_lat == 0.0:
                         st.warning("⚠️ ERROR: Missing GPS coordinates from backend.")
                     else:
                         try:
-                            # 3. Pass the API key directly in the URL (More reliable than headers)
                             ors_url = f"https://api.openrouteservice.org/v2/directions/driving-car?api_key={ORS_API_KEY}&start={src_lon},{src_lat}&end={dest_lon},{dest_lat}"
-                            
                             route_res = requests.get(ors_url, timeout=5)
                             
                             if route_res.status_code == 200:
@@ -375,8 +371,10 @@ if app_view == "🔮 Route Risk Checker":
                                     summary = route_data["features"][0]["properties"]["summary"]
                                     adjusted_dist = round(summary["distance"] / 1000, 1) 
                                     adjusted_dur = round(summary["duration"] / 3600, 1)
+                                    
+                                    # 🌟 NEW: Extract the exact road geometry!
+                                    route_coordinates = route_data["features"][0]["geometry"]["coordinates"]
                             else:
-                                # Show the exact API rejection reason on screen
                                 st.warning(f"⚠️ ORS API Failed (Code {route_res.status_code}): {route_res.text}")
                         except Exception as e:
                             st.warning(f"⚠️ API Request Crash: {e}")
@@ -416,25 +414,15 @@ if app_view == "🔮 Route Risk Checker":
 
                 with col_advisory:
                     try:
-                        dest_lat = float(res_data.get("latitude", 32.2396))
-                        dest_lon = float(res_data.get("longitude", 77.1887))
-                        features = res_data.get("processed_features", {})
-                        src_lat = float(features.get("source_lat", dest_lat))
-                        src_lon = float(features.get("source_lon", dest_lon))
-
                         mid_lat = (src_lat + dest_lat) / 2
                         mid_lon = (src_lon + dest_lon) / 2
 
+                        # 📍 1. Draw the Origin and Destination markers
                         map_data = pd.DataFrame({
                             "lat": [src_lat, dest_lat],
                             "lon": [src_lon, dest_lon],
                             "color": [[231, 76, 60, 200], [46, 204, 113, 200]],
                             "name": ["Origin", "Destination"]
-                        })
-
-                        line_data = pd.DataFrame({
-                            "start": [[src_lon, src_lat]],
-                            "end": [[dest_lon, dest_lat]]
                         })
 
                         scatter_layer = pdk.Layer(
@@ -448,28 +436,48 @@ if app_view == "🔮 Route Risk Checker":
                             pickable=True
                         )
 
-                        line_layer = pdk.Layer(
-                            "LineLayer",
-                            data=line_data,
-                            get_source_position="start",
-                            get_target_position="end",
-                            get_color=[52, 152, 219, 180],
-                            get_width=5,
-                        )
+                        # 🗺️ 2. THE WOW FACTOR: Draw the winding roads!
+                        if route_coordinates:
+                            # If we have the ORS data, trace the exact physical road
+                            path_data = pd.DataFrame({"path": [route_coordinates]})
+                            route_layer = pdk.Layer(
+                                "PathLayer",
+                                data=path_data,
+                                get_path="path",
+                                get_color=[52, 152, 219, 200], # Sleek blue route
+                                width_scale=20,
+                                width_min_pixels=4,
+                                get_width=5
+                            )
+                        else:
+                            # Failsafe: If the API fails, fall back to the straight line
+                            line_data = pd.DataFrame({
+                                "start": [[src_lon, src_lat]],
+                                "end": [[dest_lon, dest_lat]]
+                            })
+                            route_layer = pdk.Layer(
+                                "LineLayer",
+                                data=line_data,
+                                get_source_position="start",
+                                get_target_position="end",
+                                get_color=[52, 152, 219, 180],
+                                get_width=5,
+                            )
 
-                        view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=6, pitch=0)
+                        # 3. Render the 3D Canvas
+                        view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=6.5, pitch=45) # Tilted 45 degrees for a cool 3D effect!
                         
                         r = pdk.Deck(
-                            layers=[line_layer, scatter_layer], 
+                            layers=[route_layer, scatter_layer], 
                             initial_view_state=view_state, 
-                            map_style="road", 
+                            map_style="mapbox://styles/mapbox/dark-v11", # Changed to a sleek dark map!
                             tooltip={"text": "{name}"}
                         )
                         st.pydeck_chart(r)
 
                     except Exception as e:
                         st.warning(f"⚠️ Map rendering error: {e}. Fallback loaded.")
-                        st.map(pd.DataFrame({"latitude": [32.2396], "longitude": [77.1887]}), width='stretch')
+                        st.map(pd.DataFrame({"latitude": [dest_lat], "longitude": [dest_lon]}), width='stretch')
                         
                 weather_weight = float(normalized_features['rain'] * 1.5 + normalized_features['wind_speed'] * 0.5)
                 terrain_weight = float(telemetry.get('elevation_penalty', 0) * 2.0 + telemetry.get('transport_complexity_score', 0) * 0.2)
@@ -744,18 +752,38 @@ elif app_view == "📊 Travel Data Analytics":
 
                 st.write("---")
                 
+                # 📈 UPGRADED TRIP COST CHART
                 st.markdown("#### 📈 Trip Cost Estimates Over Time")
-                budget_df['Forecast Number'] = [f"Forecast {i+1}" for i in range(len(budget_df))]
+                
+                # 1. Grab the real timestamp instead of a fake sequence
+                time_col = 'Timestamp' if 'Timestamp' in budget_df.columns else budget_df.columns[0]
+                
+                # Format it nicely (e.g., "Jun 22, 14:30") so it fits on the axis
+                try:
+                    budget_df['Date Run'] = pd.to_datetime(budget_df[time_col]).dt.strftime('%b %d, %H:%M')
+                except Exception:
+                    budget_df['Date Run'] = budget_df[time_col] # Fallback just in case
+                
+                # 2. Add rich context for the hover tooltip!
+                hover_details = [col for col in ['Location', 'Travel Date', 'Days', 'People', 'Style'] if col in budget_df.columns]
                 
                 fig_cost = px.line(
                     budget_df, 
-                    x='Forecast Number', 
+                    x='Date Run', 
                     y=cost_col,
                     markers=True,
                     line_shape="spline",
-                    color_discrete_sequence=["#2ecc71"] 
+                    color_discrete_sequence=["#2ecc71"],
+                    hover_data=hover_details # Injects the trip details into the mouse hover
                 )
-                fig_cost.update_layout(xaxis_title="", yaxis_title="Cost (INR)")
+                
+                # 3. Clean up the UI
+                fig_cost.update_layout(
+                    xaxis_title="When Forecast Was Run", 
+                    yaxis_title="Estimated Cost (INR)",
+                    hovermode="x unified", # Creates a beautiful, grouped pop-up box
+                    xaxis_tickangle=-45 # Tilts the date text so it doesn't overlap on crowded charts
+                )
                 st.plotly_chart(fig_cost, use_container_width=True)
 
                 st.write("---")
