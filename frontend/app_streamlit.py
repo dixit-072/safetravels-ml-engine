@@ -21,14 +21,17 @@ from budget_ui import render_budget_tab
 load_dotenv(find_dotenv(), override=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-ORS_API_KEY = os.getenv("ORS_API_KEY")
-
+# 🛡️ THE ULTIMATE FAILSAFE KEY LOADER
+# 1. Try Streamlit Secrets first (Best Practice)
 try:
-    ORS_API_KEY = ORS_API_KEY
-    print('THIS ONE',ORS_API_KEY)
+    ORS_API_KEY = st.secrets.get("ORS_API_KEY")
 except Exception:
     ORS_API_KEY = None
-    st.error("⚠️ SECRETS ERROR: Could not find ORS_API_KEY in .streamlit/secrets.toml")
+
+# 2. Try standard OS environment/dotenv second
+if not ORS_API_KEY:
+    ORS_API_KEY = os.getenv("ORS_API_KEY")
+
 
 st.set_page_config(page_title="SafeTravels | Smart Route Planner", page_icon="🚗", layout="wide")
 
