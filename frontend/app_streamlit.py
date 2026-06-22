@@ -438,9 +438,20 @@ if app_view == "🔮 Route Risk Checker":
                     current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     target_date_str = travel_date.strftime("%Y-%m-%d")
                     current_time_str = datetime.now().strftime("%I:%M:%S %p")
-                    
                     saved_query = st.session_state.get("saved_final_query", "Unknown")
                     
+                    # 1. CALCULATE MATHEMATICAL BASELINE AUTOMATICALLY
+                    # We pull these values directly from your telemetry dictionary
+                    telemetry = st.session_state.get("latest_telemetry", {})
+                    
+                    # Re-deriving the components based on your original weightings
+                    w_math = float(telemetry.get('rain', 0.0) * 1.5 + telemetry.get('wind_speed', 0.0) * 0.5)
+                    t_math = float(telemetry.get('elevation_penalty', 0) * 2.0 + telemetry.get('transport_complexity_score', 0) * 0.2)
+                    c_math = float(telemetry.get('crowd_baseline', 45) + telemetry.get('festival_boost', 0))
+                    
+                    math_score = round(w_math + t_math + c_math, 2)
+                    
+                    # 2. LOGGING PAYLOAD (Math Score inserted into the slot where "" used to be)
                     sheet_row_payload = [
                         current_timestamp,
                         saved_query, 
@@ -448,16 +459,18 @@ if app_view == "🔮 Route Risk Checker":
                         float(dest_lat or 0.0),
                         float(dest_lon or 0.0),
                         round(float(score or 0.0), 2),
-                        "",
+                        math_score, # 👈 MATHEMATICAL GROUND TRUTH IS NOW HERE!
                         tier,
                         res_data.get("destination_type", "General"),
                         res_data.get("destination_description", "N/A"),
                         res_data.get("model_version", "v1.0_ML"),
                         target_date_str,
-                        telemetry
+                        json.dumps(telemetry)
                     ]
+                    
                     write_cloud_prediction_log(sheet_row_payload)
 
+                    # 3. Update session history
                     history_log = {
                         "Time Checked": current_time_str,
                         "📅 Planned Travel Date": target_date_str,
@@ -580,7 +593,7 @@ elif app_view == "📊 Travel Data Analytics":
                     # MATHEMATICAL BASELINE: Simulate the heuristic score
                     math_baseline = (clean_predicted * 0.93) + 3.2 
                     
-                    clean_actual = pd.to_numeric(db_df[true_col], errors='coerce').fillna(math_baseline)
+                    clean_actual = pd.to_numeric(db_df['actual_score'], errors='coerce') # No fillna needed!
                     
                     compare_df = pd.DataFrame({
                         'AI Predicted Score': clean_predicted,
