@@ -7,6 +7,7 @@ import numpy as np
 import gspread
 import pydeck as pdk
 import json
+import plotly.express as px
 import base64
 from streamlit_gsheets import GSheetsConnection
 from google.oauth2.service_account import Credentials

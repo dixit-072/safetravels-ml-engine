@@ -15,6 +15,7 @@ scikit-learn
 xgboost
 joblib
 holidays
+plotly
 
 # --- Cloud, Database & Auth ---
 requests
