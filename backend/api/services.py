@@ -56,7 +56,7 @@ def geocode_location(query: str):
     
     try:
         # Increased timeout slightly to 10s to prevent accidental timeouts on slow connections
-        res = requests.get(geo_url, params={"q": query, "format": "json", "limit": 1}, headers=headers, timeout=10)
+        res = requests.get(geo_url, params={"q": query, "format": "json", "limit": 1, "countrycodes": "in"}, headers=headers, timeout=10)
         
         # 🚨 INSTANT DEBUGGING: If you are blocked, this tells you exactly why in your terminal
         if res.status_code in [403, 429]:
