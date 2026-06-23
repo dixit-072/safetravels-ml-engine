@@ -1,9 +1,8 @@
 import random
 import logging
 
-# 🌟 Updated to the Scientific Meteorologist Thresholds!
 THRESHOLDS = {
-    "rain": {"moderate": 7.6, "heavy": 50.0},
+    "rain": {"moderate": 15.0, "heavy": 50.0},
     "wind": {"high": 35.0},
     "elevation": {"mountain": 1000.0},
     "temperature": {"cold": 10.0, "hot": 35.0}
@@ -116,7 +115,7 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
         elif "elevated" in tier_clean or "severe" in tier_clean: mapped_tier = "Elevated"
         else: mapped_tier = "Critical"
 
-        # Router Selections
+        # Router Selections with the "No Rain" fix
         if safe_features["rain"] >= THRESHOLDS["rain"]["heavy"]: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["heavy_rain"])
         elif safe_features["rain"] >= THRESHOLDS["rain"]["moderate"]: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["moderate_rain"])
         elif safe_features["rain"] > 0.1: weather_txt = random.choice(SEMANTIC_LIBRARY["weather"]["light_rain"])
