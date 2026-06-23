@@ -176,16 +176,17 @@ def translate_rainfall(mm_value):
     except (ValueError, TypeError):
         return "Unknown ☁️", "N/A"
         
+    # Made strings shorter so they fit perfectly in the Streamlit metric container
     if mm <= 0.1:
-        return "Dry Conditions ☀️", "5% chance"
+        return "Dry ☀️", "5%"
     elif mm <= 2.5:
-        return "Light Drizzle 🌦️", "30% chance"
+        return "Drizzle 🌦️", "30%"
     elif mm <= 7.5:
-        return "Moderate Rain 🌧️", "65% chance"
+        return "Moderate 🌧️", "65%"
     elif mm <= 35.0:
-        return "Heavy Rain ⛈️", "90% chance"
+        return "Heavy ⛈️", "90%"
     else:
-        return "Extreme Downpour 🌊", "99% chance"
+        return "Extreme 🌊", "99%"
 
 @st.cache_data
 def load_cached_destinations():
@@ -354,19 +355,7 @@ if app_view == "🔮 Route Risk Checker":
                     "risk_score": float(score)
                 }
 
-                # --- 1. CALCULATE WEIGHTS FIRST (Fixes Undefined Variables) ---
-                weather_weight = float(normalized_features['rain'] * 1.5 + normalized_features['wind_speed'] * 0.5)
-                terrain_weight = float(telemetry.get('elevation_penalty', 0) * 2.0 + telemetry.get('transport_complexity_score', 0) * 0.2)
-                crowd_weight = float(telemetry.get('crowd_baseline', 45) + telemetry.get('festival_boost', 0))
-                
-                total_weight = weather_weight + terrain_weight + crowd_weight
-                if total_weight == 0: total_weight = 1.0
-
-                w_pct = round((weather_weight / total_weight) * 100, 1)
-                t_pct = round((terrain_weight / total_weight) * 100, 1)
-                c_pct = round((crowd_weight / total_weight) * 100, 1)
-
-                # --- 2. SET UP LAYOUT ---
+                # --- SET UP LAYOUT ---
                 col_inputs, col_advisory = st.columns([1.2, 1], gap="large")
 
                 # LEFT COLUMN: Map & Live Metrics
@@ -497,37 +486,16 @@ if app_view == "🔮 Route Risk Checker":
                         st.metric(
                             label="🌧️ Predicted Rainfall", 
                             value=f"{rain_val:.2f} mm",
-                            delta=f"{rain_status} • {travel_risk}",
+                            delta=f"{rain_status} ({travel_risk})",
                             delta_color="off"
                         )
                         
                     with m_r2_col2:
                         st.metric(label="💨 Estimated Wind", value=f"{normalized_features.get('wind_speed', 0.0):.1f} km/h")
 
-                # RIGHT COLUMN: Chart, Narrative, AI Summary
+                # RIGHT COLUMN: Narrative, AI Summary (Donut Chart removed)
                 with col_advisory:
-                    st.markdown("### 📊 What is Driving the Risk?")
-                    risk_breakdown_df = pd.DataFrame({
-                        "Risk Factor": ["Weather & Elements", "Terrain & Route", "Traffic & Crowds"],
-                        "Contribution": [w_pct, t_pct, c_pct]
-                    })
-
-                    fig_breakdown = px.pie(
-                        risk_breakdown_df,
-                        names="Risk Factor",
-                        values="Contribution",
-                        hole=0.6, 
-                        color="Risk Factor",
-                        color_discrete_map={
-                            "Weather & Elements": "#3498db",  
-                            "Terrain & Route": "#e67e22",     
-                            "Traffic & Crowds": "#9b59b6"     
-                        }
-                    )
-                    
-                    fig_breakdown.update_traces(textposition='inside', textinfo='percent+label')
-                    fig_breakdown.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
-                    st.plotly_chart(fig_breakdown, use_container_width=True)
+                    st.markdown("### 🤖 Risk Analysis Summary")
                     
                     # Narrative Block
                     generated_narrative = generate_semantic_narrative(normalized_features, tier)
