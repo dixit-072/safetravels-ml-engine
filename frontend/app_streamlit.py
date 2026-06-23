@@ -8,13 +8,12 @@ import gspread
 import pydeck as pdk
 import json
 import base64
-import plotly.express as px
 from streamlit_gsheets import GSheetsConnection
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from dotenv import find_dotenv, load_dotenv
 
-from summary import generate_semantic_narrative, generate_combined_summary
+from summary import generate_semantic_narrative  
 from budget_ui import render_budget_tab          
 
 # This MUST be the first Streamlit command
@@ -168,22 +167,21 @@ def write_budget_cloud_log(row_data: list):
     except Exception as e:
         logging.error(f"🛑 Failed to append budget log to Google Sheets: {e}")
         return False
-    
+
+# 🌟 NEW CLEAN RAINFALL TRANSLATOR (Guaranteed to fit in UI box)
 def translate_rainfall(mm_value):
-    """Converts raw rainfall mm into a human-readable status and estimated probability."""
     try:
         mm = float(mm_value)
     except (ValueError, TypeError):
         return "Unknown ☁️", "N/A"
         
-    # Made strings shorter so they fit perfectly in the Streamlit metric container
     if mm <= 0.1:
         return "Dry ☀️", "5%"
     elif mm <= 2.5:
         return "Drizzle 🌦️", "30%"
-    elif mm <= 7.5:
+    elif mm <= 7.6:
         return "Moderate 🌧️", "65%"
-    elif mm <= 35.0:
+    elif mm <= 50.0:
         return "Heavy ⛈️", "90%"
     else:
         return "Extreme 🌊", "99%"
@@ -269,7 +267,8 @@ if app_view == "🔮 Route Risk Checker":
             trigger_inference = st.button("Check Route Safety Profile", type="primary", use_container_width=True)
 
         st.write("") 
-        
+        col_inputs, col_advisory = st.columns([1.2, 1], gap="large")
+
         if trigger_inference:
             if not BACKEND_ONLINE:
                 st.error("🛑 Cannot Complete Request: The calculation backend is currently offline.")
@@ -354,11 +353,7 @@ if app_view == "🔮 Route Risk Checker":
                     "resolved_name": res_data.get("resolved_name", "Specified Destination"),
                     "risk_score": float(score)
                 }
-
-                # --- SET UP LAYOUT ---
-                col_inputs, col_advisory = st.columns([1.2, 1], gap="large")
-
-                # LEFT COLUMN: Map & Live Metrics
+                
                 with col_inputs:
                     st.subheader("📊 Current Live Conditions")
                     st.success(f"📍 Location Confirmed: **{res_data.get('resolved_name')}**" if not is_test_mode else "📍 Location Confirmed: Manali (SIMULATED FORCING)")
@@ -366,12 +361,13 @@ if app_view == "🔮 Route Risk Checker":
                     # 🗺️ OPEN ROUTES SERVICE (ORS) API INTEGRATION
                     dest_lat = float(res_data.get("latitude", 0.0))
                     dest_lon = float(res_data.get("longitude", 0.0))
+                    
                     src_lat = float(telemetry.get("source_lat", 28.6139)) 
                     src_lon = float(telemetry.get("source_lon", 77.2090))
                     
                     adjusted_dist = 0.0
                     adjusted_dur = 0.0
-                    route_coordinates = [] 
+                    route_coordinates = [] # 🌟 NEW: This will hold our winding road map data!
                     
                     if not ORS_API_KEY:
                         st.warning("⚠️ ERROR: ORS_API_KEY is not loading from secrets!")
@@ -388,12 +384,15 @@ if app_view == "🔮 Route Risk Checker":
                                     summary = route_data["features"][0]["properties"]["summary"]
                                     adjusted_dist = round(summary["distance"] / 1000, 1) 
                                     adjusted_dur = round(summary["duration"] / 3600, 1)
+                                    
+                                    # 🌟 NEW: Extract the exact road geometry!
                                     route_coordinates = route_data["features"][0]["geometry"]["coordinates"]
                             else:
                                 st.warning(f"⚠️ ORS API Failed (Code {route_res.status_code}): {route_res.text}")
                         except Exception as e:
                             st.warning(f"⚠️ API Request Crash: {e}")
                             
+                    # Fallback failsafe
                     if adjusted_dist == 0.0:
                         raw_dist = float(res_data.get('route_distance_km', 0))
                         raw_dur = float(res_data.get('route_duration_hrs', 0))
@@ -403,63 +402,6 @@ if app_view == "🔮 Route Risk Checker":
 
                     st.markdown(f"🛣️ **Route Planner:** {res_data.get('source_name', 'Origin')} ➔ {res_data.get('resolved_name')}")
                     st.markdown(f"📏 **Driving Distance:** {adjusted_dist} km (Approx {adjusted_dur} hours)")
-
-                    # 📍 RENDER MAP
-                    try:
-                        mid_lat = (src_lat + dest_lat) / 2
-                        mid_lon = (src_lon + dest_lon) / 2
-
-                        map_data = pd.DataFrame({
-                            "lat": [src_lat, dest_lat],
-                            "lon": [src_lon, dest_lon],
-                            "color": [[231, 76, 60, 200], [46, 204, 113, 200]],
-                            "name": ["Origin", "Destination"]
-                        })
-
-                        scatter_layer = pdk.Layer(
-                            "ScatterplotLayer",
-                            data=map_data,
-                            get_position="[lon, lat]",
-                            get_fill_color="color",
-                            get_radius=8000,
-                            radius_min_pixels=8,
-                            radius_max_pixels=25,
-                            pickable=True
-                        )
-
-                        if route_coordinates:
-                            route_layer = pdk.Layer(
-                                "PathLayer",
-                                data=[{"path": route_coordinates}], 
-                                get_path="path",
-                                get_color=[52, 152, 219, 255], 
-                                width_scale=20,
-                                width_min_pixels=5,
-                                get_width=5
-                            )
-                        else:
-                            route_layer = pdk.Layer(
-                                "LineLayer",
-                                data=[{"start": [src_lon, src_lat], "end": [dest_lon, dest_lat]}],
-                                get_source_position="start",
-                                get_target_position="end",
-                                get_color=[52, 152, 219, 180],
-                                get_width=5,
-                            )
-
-                        view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=6.5, pitch=30) 
-                        r = pdk.Deck(
-                            layers=[route_layer, scatter_layer], 
-                            initial_view_state=view_state, 
-                            map_style="road", 
-                            tooltip={"text": "{name}"}
-                        )
-                        st.pydeck_chart(r)
-
-                    except Exception as e:
-                        st.warning(f"⚠️ Map rendering error: {e}. Fallback loaded.")
-                        st.map(pd.DataFrame({"latitude": [dest_lat], "longitude": [dest_lon]}), width='stretch')
-
                     st.markdown(f"#### Terrain Profile: **{res_data.get('destination_type')}**")
                     st.caption(res_data.get("destination_description"))
                     st.write("")
@@ -479,6 +421,7 @@ if app_view == "🔮 Route Risk Checker":
                     st.write("")
                     m_r2_c1, m_r2_col2 = st.columns(2)
                     
+                    # 🌟 THE RAINFALL FIX IS APPLIED HERE!
                     with m_r2_c1:
                         rain_val = normalized_features.get('rain', 0.0)
                         rain_status, travel_risk = translate_rainfall(rain_val)
@@ -489,37 +432,109 @@ if app_view == "🔮 Route Risk Checker":
                             delta=f"{rain_status} ({travel_risk})",
                             delta_color="off"
                         )
-                        
                     with m_r2_col2:
                         st.metric(label="💨 Estimated Wind", value=f"{normalized_features.get('wind_speed', 0.0):.1f} km/h")
 
-                # RIGHT COLUMN: Narrative, AI Summary (Donut Chart removed)
                 with col_advisory:
-                    st.markdown("### 🤖 Risk Analysis Summary")
-                    
-                    # Narrative Block
-                    generated_narrative = generate_semantic_narrative(normalized_features, tier)
-                    tier_clean = str(tier).lower()
-                    if "minimal" in tier_clean or "low" in tier_clean:
-                        st.success(generated_narrative)  
-                    elif "moderate" in tier_clean or "elevated" in tier_clean:
-                        st.warning(generated_narrative)  
-                    else:
-                        st.error(generated_narrative)    
-                    
-                    # Combined Logic Stoplight
-                    st.divider()
-                    dummy_stress = float(telemetry.get('budget_stress_index', 50))
-                    combined_text = generate_combined_summary(tier, dummy_stress, 5000.0)
-                    st.info(combined_text)
-                    st.divider()
+                    try:
+                        mid_lat = (src_lat + dest_lat) / 2
+                        mid_lon = (src_lon + dest_lon) / 2
 
-                    st.write("")
-                    st.metric(label="Overall Safety Risk Score (0 = Safest, 100 = Hazardous)", value=f"{score:.2f} / 100")
-                    st.progress(float(score) / 100.0)
-                    st.caption(f"🤖 Powered by AI Risk Models | Application Version: v{res_data.get('model_version')}")
+                        # 📍 1. Draw the Origin and Destination markers
+                        map_data = pd.DataFrame({
+                            "lat": [src_lat, dest_lat],
+                            "lon": [src_lon, dest_lon],
+                            "color": [[231, 76, 60, 200], [46, 204, 113, 200]],
+                            "name": ["Origin", "Destination"]
+                        })
 
-                # --- 3. CLOUD LOGGING & HISTORY ---
+                        scatter_layer = pdk.Layer(
+                            "ScatterplotLayer",
+                            data=map_data,
+                            get_position="[lon, lat]",
+                            get_fill_color="color",
+                            get_radius=8000,
+                            radius_min_pixels=8,
+                            radius_max_pixels=25,
+                            pickable=True
+                        )
+
+                        # 🗺️ 2. THE WOW FACTOR: Draw the winding roads!
+                        if route_coordinates:
+                            # 🛡️ FIX 1: Pass the data as a pure Python dictionary list instead of a DataFrame
+                            route_layer = pdk.Layer(
+                                "PathLayer",
+                                data=[{"path": route_coordinates}], 
+                                get_path="path",
+                                get_color=[52, 152, 219, 255], 
+                                width_scale=20,
+                                width_min_pixels=5,
+                                get_width=5
+                            )
+                        else:
+                            # Failsafe Fallback
+                            route_layer = pdk.Layer(
+                                "LineLayer",
+                                data=[{"start": [src_lon, src_lat], "end": [dest_lon, dest_lat]}],
+                                get_source_position="start",
+                                get_target_position="end",
+                                get_color=[52, 152, 219, 180],
+                                get_width=5,
+                            )
+
+                        # 3. Render the 3D Canvas
+                        # Lowered the pitch from 45 to 30 so city names are easier to read
+                        view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=6.5, pitch=30) 
+                        
+                        r = pdk.Deck(
+                            layers=[route_layer, scatter_layer], 
+                            initial_view_state=view_state, 
+                            map_style="road", # 🌟 CHANGED: Bright, clean, street-level map!
+                            tooltip={"text": "{name}"}
+                        )
+                        st.pydeck_chart(r)
+
+                    except Exception as e:
+                        st.warning(f"⚠️ Map rendering error: {e}. Fallback loaded.")
+                        st.map(pd.DataFrame({"latitude": [dest_lat], "longitude": [dest_lon]}), width='stretch')
+                        
+                weather_weight = float(normalized_features['rain'] * 1.5 + normalized_features['wind_speed'] * 0.5)
+                terrain_weight = float(telemetry.get('elevation_penalty', 0) * 2.0 + telemetry.get('transport_complexity_score', 0) * 0.2)
+                crowd_weight = float(telemetry.get('crowd_baseline', 45) + telemetry.get('festival_boost', 0))
+                total_weight = weather_weight + terrain_weight + crowd_weight
+                if total_weight == 0: total_weight = 1.0
+
+                w_pct = round((weather_weight / total_weight) * 100, 1)
+                t_pct = round((terrain_weight / total_weight) * 100, 1)
+                c_pct = round((crowd_weight / total_weight) * 100, 1)
+
+                generated_narrative = generate_semantic_narrative(normalized_features, tier)
+
+                st.markdown("---")
+                
+                tier_clean = str(tier).lower()
+                if "minimal" in tier_clean or "low" in tier_clean:
+                    st.success(generated_narrative)  
+                elif "moderate" in tier_clean or "elevated" in tier_clean:
+                    st.warning(generated_narrative)  
+                else:
+                    st.error(generated_narrative)    
+                
+                st.write("")
+                st.metric(label="Overall Safety Risk Score (0 = Safest, 100 = Hazardous)", value=f"{score:.2f} / 100")
+                st.progress(float(score) / 100.0)
+                st.caption(f"🤖 Powered by AI Risk Models | Application Version: v{res_data.get('model_version')}")
+                
+                st.write("---")
+                st.markdown("#### 📡 Visualized Risk Distribution Share Graph")
+                live_shares = {
+                    "🌧️ Live Weather Conditions": w_pct,
+                    "⛰️ Local Mountain & Terrain Factors": t_pct,
+                    "🧑‍🤝‍🧑 Tourist Traffic & Crowd Baseline": c_pct
+                }
+                share_df = pd.DataFrame(list(live_shares.items()), columns=["Risk Driver Group", "Influence Share (%)"])
+                st.bar_chart(share_df.set_index("Risk Driver Group"), horizontal=True)
+
                 if st.session_state.get("log_this_run", False):
                     
                     current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -527,8 +542,12 @@ if app_view == "🔮 Route Risk Checker":
                     current_time_str = datetime.now().strftime("%I:%M:%S %p")
                     saved_query = st.session_state.get("saved_final_query", "Unknown")
                     
+                    telemetry = st.session_state.get("latest_telemetry", {})
+                    
+                    # 1. CALCULATE THE REAL TRUTH using the function
                     math_score = get_mathematical_ground_truth(telemetry)
                     
+                    # 2. LOGGING PAYLOAD
                     sheet_row_payload = [
                         current_timestamp,
                         saved_query, 
@@ -546,6 +565,7 @@ if app_view == "🔮 Route Risk Checker":
                     ]
                     write_cloud_prediction_log(sheet_row_payload)
 
+                    # 3. Update session history
                     history_log = {
                         "Time Checked": current_time_str,
                         "📅 Planned Travel Date": target_date_str,
@@ -651,8 +671,10 @@ elif app_view == "📊 Travel Data Analytics":
                 st.write("---")
                 st.markdown("#### ⚖️ AI Accuracy & Model Truth Comparison")
                 
+                # 🛡️ 1. STRIP HIDDEN SPACES FROM HEADERS
                 db_df.columns = db_df.columns.str.strip()
                 
+                # 2. FIND THE COLUMNS
                 true_col = next((c for c in ['calculated_baseline_risk', 'Calculated Baseline Risk', 'actual_score'] if c in db_df.columns), None)
                 
                 if not true_col:
@@ -660,6 +682,9 @@ elif app_view == "📊 Travel Data Analytics":
                 elif not score_col:
                     st.warning(f"⚠️ Could not find the AI prediction column! Headers found: {db_df.columns.tolist()}")
                 else:
+                    import plotly.express as px
+                    
+                    # 3. EXTRACT AND CLEAN THE DATA
                     db_df[score_col] = pd.to_numeric(db_df[score_col], errors='coerce')
                     db_df[true_col] = pd.to_numeric(db_df[true_col], errors='coerce')
                     
@@ -698,9 +723,9 @@ elif app_view == "📊 Travel Data Analytics":
                     else:
                         st.info("💡 Data found, but predictions or baselines are blank (NaN). Run a new search to generate paired data!")
 
+        # This catches the empty database state
         else:
             st.info("💡 No risk searches recorded yet. Go to the Risk Checker to generate data!")
-    
     with tab_budget_analytics:
         st.header("💸 AI Financial Forecasting Insights")
         
@@ -710,6 +735,8 @@ elif app_view == "📊 Travel Data Analytics":
             st.warning("⚠ Could not connect to Google Sheets, or the 'budget_forecasts' tab is empty.")
             st.info("Run a budget calculation in the main app to start generating financial analytics!")
         else:
+            import plotly.express as px
+            
             cost_col = 'Estimated Total' if 'Estimated Total' in budget_df.columns else budget_df.columns[-3]
             stress_col = 'Stress Score (%)' if 'Stress Score (%)' in budget_df.columns else budget_df.columns[-2]
             style_col = 'Style' if 'Style' in budget_df.columns else budget_df.columns[5]
@@ -744,15 +771,19 @@ elif app_view == "📊 Travel Data Analytics":
 
                 st.write("---")
                 
+                # 📈 UPGRADED TRIP COST CHART
                 st.markdown("#### 📈 Trip Cost Estimates Over Time")
                 
+                # 1. Grab the real timestamp instead of a fake sequence
                 time_col = 'Timestamp' if 'Timestamp' in budget_df.columns else budget_df.columns[0]
                 
+                # Format it nicely (e.g., "Jun 22, 14:30") so it fits on the axis
                 try:
                     budget_df['Date Run'] = pd.to_datetime(budget_df[time_col]).dt.strftime('%b %d, %H:%M')
                 except Exception:
-                    budget_df['Date Run'] = budget_df[time_col] 
+                    budget_df['Date Run'] = budget_df[time_col] # Fallback just in case
                 
+                # 2. Add rich context for the hover tooltip!
                 hover_details = [col for col in ['Location', 'Travel Date', 'Days', 'People', 'Style'] if col in budget_df.columns]
                 
                 fig_cost = px.line(
@@ -762,14 +793,15 @@ elif app_view == "📊 Travel Data Analytics":
                     markers=True,
                     line_shape="spline",
                     color_discrete_sequence=["#2ecc71"],
-                    hover_data=hover_details 
+                    hover_data=hover_details # Injects the trip details into the mouse hover
                 )
                 
+                # 3. Clean up the UI
                 fig_cost.update_layout(
                     xaxis_title="When Forecast Was Run", 
                     yaxis_title="Estimated Cost (INR)",
-                    hovermode="x unified", 
-                    xaxis_tickangle=-45 
+                    hovermode="x unified", # Creates a beautiful, grouped pop-up box
+                    xaxis_tickangle=-45 # Tilts the date text so it doesn't overlap on crowded charts
                 )
                 st.plotly_chart(fig_cost, use_container_width=True)
 
