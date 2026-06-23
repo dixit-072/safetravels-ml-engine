@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import logging
 import holidays
-import polyline
+import time
 from datetime import datetime
 from dotenv import load_dotenv 
 
@@ -44,19 +44,51 @@ CROWD_LOOKUP, CROWD_FALLBACK = get_historical_crowd_lookup()
 
 def geocode_location(query: str):
     geo_url = os.getenv("GEOCUT_BASE_URL", "https://nominatim.openstreetmap.org/search")
-    app_agent = os.getenv("NETWORK_USER_AGENT", "SafeTravels_Backend_Engine_v3")
-    headers = {"User-Agent": app_agent}
-    res = requests.get(geo_url, params={"q": query, "format": "json", "limit": 1}, headers=headers, timeout=5)
-    if res.status_code == 200 and res.json():
-        data = res.json()[0]
-        return float(data["lat"]), float(data["lon"]), data["display_name"].split(",")[0], data.get("display_name", "").lower()
+    
+    # 🛡️ THE FIX: Nominatim strictly REQUIRES an email address in the User-Agent.
+    # Be sure to change 'your_email@example.com' to your real email address!
+    app_agent = os.getenv("NETWORK_USER_AGENT", "SafeTravels_Backend_Engine_v3 (kaushaldixit783@gmail.com)")
+    
+    headers = {
+        "User-Agent": app_agent,
+        "Accept-Language": "en" # Forces English results to prevent random parsing crashes
+    }
+    
+    try:
+        # Increased timeout slightly to 10s to prevent accidental timeouts on slow connections
+        res = requests.get(geo_url, params={"q": query, "format": "json", "limit": 1}, headers=headers, timeout=10)
+        
+        # 🚨 INSTANT DEBUGGING: If you are blocked, this tells you exactly why in your terminal
+        if res.status_code in [403, 429]:
+            print(f"🛑 API BLOCKED (HTTP {res.status_code}): Nominatim is rate-limiting you!")
+            raise ValueError(f"Geocoding API blocked the request (HTTP {res.status_code}).")
+            
+        if res.status_code == 200:
+            data_list = res.json()
+            if data_list: # Check if the list actually has data inside
+                data = data_list[0]
+                return float(data["lat"]), float(data["lon"]), data["display_name"].split(",")[0], data.get("display_name", "").lower()
+            else:
+                print(f"⚠️ NOT FOUND: Nominatim database returned empty results for '{query}'")
+        else:
+            print(f"⚠️ SERVER ERROR: Nominatim returned status {res.status_code}")
+            
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ NETWORK CRASH: {e}")
+        
+    # If the code reaches here, it means it failed to find a valid location
     raise ValueError(f"Could not find coordinates for: {query}")
 
 # 3. Main Pipeline
 def gather_and_engineer_features(source_query: str, location_query: str, target_date_str: str, override_mode: str) -> tuple:
     
-    # Geocode
+    # 1. Geocode the Origin
     src_lat, src_lon, src_name, src_address = geocode_location(source_query)
+    
+    # 🛡️ THE FIX: Force Python to wait 1.2 seconds to obey Nominatim's strict rate limit
+    time.sleep(1.2)
+    
+    # 2. Geocode the Destination
     lat, lon, resolved_name, address_text = geocode_location(location_query)
 
     # =========================================================================
