@@ -149,7 +149,17 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
 
         # Risk Factor Breakdown
         drivers = []
-        if safe_features["rain"] > 0: drivers.append(f"   * 🌧️ Rain Level: {safe_features['rain']:.1f} mm")
+        if safe_features["rain"] > 0: 
+            # Calculate the percentage chance so it matches the UI
+            rain_mm = safe_features['rain']
+            if rain_mm <= 0.1: prob = "5%"
+            elif rain_mm <= 2.5: prob = "30%"
+            elif rain_mm <= 7.6: prob = "65%"
+            elif rain_mm <= 50.0: prob = "90%"
+            else: prob = "99%"
+            
+            drivers.append(f"   * 🌧️ Rain Level: {rain_mm:.1f} mm ({prob} chance)")
+            
         if is_mountain: drivers.append(f"   * ⛰️ Altitude: {safe_features['elevation']:.0f} m")
         if safe_features["wind_speed"] > 0: drivers.append(f"   * 💨 Wind Speed: {safe_features['wind_speed']:.1f} km/h")
         risk_drivers_output = "\n".join(drivers) if drivers else "   * None detected"
