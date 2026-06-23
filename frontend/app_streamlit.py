@@ -324,25 +324,15 @@ if app_view == "🔮 Route Risk Checker":
             is_test_mode = st.session_state["saved_is_test"]
             
             if res_data and res_data.get("status") == "SUCCESS":
-                
+                # Handle Test Mode Mappings
                 if is_test_mode:
                     forced_score = st.session_state["saved_forced_score"]
                     res_data["predicted_hazard_score"] = forced_score
-                    if forced_score < 25:
-                        res_data["risk_category"] = "Minimal"
-                        res_data["processed_features"].update({"rain": 0.0, "wind_speed": 5.0, "temp_max": 22.0})
-                    elif forced_score < 45:
-                        res_data["risk_category"] = "Low"
-                        res_data["processed_features"].update({"rain": 2.4, "wind_speed": 12.0, "temp_max": 18.5})
-                    elif forced_score < 65:
-                        res_data["risk_category"] = "Moderate"
-                        res_data["processed_features"].update({"rain": 14.2, "wind_speed": 22.4, "temp_max": 14.0})
-                    elif forced_score < 85:
-                        res_data["risk_category"] = "Elevated"
-                        res_data["processed_features"].update({"rain": 38.5, "wind_speed": 34.1, "temp_max": 9.5})
-                    else:
-                        res_data["risk_category"] = "Critical"
-                        res_data["processed_features"].update({"rain": 85.4, "wind_speed": 48.2, "temp_max": 4.1})
+                    if forced_score < 25: res_data["risk_category"] = "Minimal"
+                    elif forced_score < 45: res_data["risk_category"] = "Low"
+                    elif forced_score < 65: res_data["risk_category"] = "Moderate"
+                    elif forced_score < 85: res_data["risk_category"] = "Elevated"
+                    else: res_data["risk_category"] = "Critical"
 
                 telemetry = res_data.get("processed_features", {})
                 st.session_state["latest_telemetry"] = telemetry  
@@ -358,6 +348,17 @@ if app_view == "🔮 Route Risk Checker":
                     "resolved_name": res_data.get("resolved_name", "Specified Destination"),
                     "risk_score": float(score)
                 }
+
+                # --- 1. PRE-CALCULATE MATH FIRST (Fixes "Undefined" Error) ---
+                weather_weight = float(normalized_features['rain'] * 1.5 + normalized_features['wind_speed'] * 0.5)
+                terrain_weight = float(telemetry.get('elevation_penalty', 0) * 2.0 + telemetry.get('transport_complexity_score', 0) * 0.2)
+                crowd_weight = float(telemetry.get('crowd_baseline', 45) + telemetry.get('festival_boost', 0))
+                total_weight = weather_weight + terrain_weight + crowd_weight
+                if total_weight == 0: total_weight = 1.0
+
+                w_pct = round((weather_weight / total_weight) * 100, 1)
+                t_pct = round((terrain_weight / total_weight) * 100, 1)
+                c_pct = round((crowd_weight / total_weight) * 100, 1)
                 
                 with col_inputs:
                     st.subheader("📊 Current Live Conditions")
@@ -366,13 +367,12 @@ if app_view == "🔮 Route Risk Checker":
                     # 🗺️ OPEN ROUTES SERVICE (ORS) API INTEGRATION
                     dest_lat = float(res_data.get("latitude", 0.0))
                     dest_lon = float(res_data.get("longitude", 0.0))
-                    
                     src_lat = float(telemetry.get("source_lat", 28.6139)) 
                     src_lon = float(telemetry.get("source_lon", 77.2090))
                     
                     adjusted_dist = 0.0
                     adjusted_dur = 0.0
-                    route_coordinates = [] # 🌟 NEW: This will hold our winding road map data!
+                    route_coordinates = [] 
                     
                     if not ORS_API_KEY:
                         st.warning("⚠️ ERROR: ORS_API_KEY is not loading from secrets!")
@@ -382,18 +382,13 @@ if app_view == "🔮 Route Risk Checker":
                         try:
                             ors_url = f"https://api.openrouteservice.org/v2/directions/driving-car?api_key={ORS_API_KEY}&start={src_lon},{src_lat}&end={dest_lon},{dest_lat}"
                             route_res = requests.get(ors_url, timeout=5)
-                            
                             if route_res.status_code == 200:
                                 route_data = route_res.json()
                                 if "features" in route_data and len(route_data["features"]) > 0:
                                     summary = route_data["features"][0]["properties"]["summary"]
                                     adjusted_dist = round(summary["distance"] / 1000, 1) 
                                     adjusted_dur = round(summary["duration"] / 3600, 1)
-                                    
-                                    # 🌟 NEW: Extract the exact road geometry!
                                     route_coordinates = route_data["features"][0]["geometry"]["coordinates"]
-                            else:
-                                st.warning(f"⚠️ ORS API Failed (Code {route_res.status_code}): {route_res.text}")
                         except Exception as e:
                             st.warning(f"⚠️ API Request Crash: {e}")
                             
@@ -409,223 +404,63 @@ if app_view == "🔮 Route Risk Checker":
                     st.markdown(f"📏 **Driving Distance:** {adjusted_dist} km (Approx {adjusted_dur} hours)")
                     st.markdown(f"#### Terrain Profile: **{res_data.get('destination_type')}**")
                     st.caption(res_data.get("destination_description"))
-                    st.write("")
-                        
+                    
+                    # ⛰️ Temp and Elevation
                     m_r1_c1, m_r1_col2 = st.columns(2)
                     with m_r1_c1:
                         st.metric(label="⛰️ Altitude Height", value=f"{normalized_features.get('elevation', 0):,.0f} m")
                     with m_r1_col2:
-                        t_max = normalized_features.get("temp_max", 0.0)
-                        t_min = normalized_features.get("temp_min", 0.0)
                         sub_col1, sub_col2 = st.columns(2)
-                        with sub_col1:
-                            st.metric(label="🔴 High Temp", value=f"{t_max:.0f}°C")
-                        with sub_col2:
-                            st.metric(label="🔵 Low Temp", value=f"{t_min:.0f}°C")
+                        with sub_col1: st.metric(label="🔴 High Temp", value=f"{normalized_features.get('temp_max', 0.0):.0f}°C")
+                        with sub_col2: st.metric(label="🔵 Low Temp", value=f"{normalized_features.get('temp_min', 0.0):.0f}°C")
 
+                    # Rainfall & Wind Metrics
                     st.write("")
                     m_r2_c1, m_r2_col2 = st.columns(2)
-                    
                     with m_r2_c1:
-                        # 1. Grab the raw rain value from your features
                         rain_val = normalized_features.get('rain', 0.0)
-                        
-                        # 2. Get the scientifically accurate translations
                         rain_status, travel_risk = translate_rainfall(rain_val)
-                        
-                        # 3. Draw the upgraded widget with the sleek grey subtitle
-                        st.metric(
-                            label="🌧️ Predicted Rainfall", 
-                            value=f"{rain_val:.2f} mm",
-                            delta=f"{rain_status} • {travel_risk}",
-                            delta_color="off"
-                        )
-                        
+                        st.metric(label="🌧️ Predicted Rainfall", value=f"{rain_val:.2f} mm",
+                                  delta=f"{rain_status} • {travel_risk}", delta_color="off")
                     with m_r2_col2:
-                        # Leaving the wind metric exactly as you had it!
                         st.metric(label="💨 Estimated Wind", value=f"{normalized_features.get('wind_speed', 0.0):.1f} km/h")
 
                 with col_advisory:
-                    try:
-                        mid_lat = (src_lat + dest_lat) / 2
-                        mid_lon = (src_lon + dest_lon) / 2
+                    # Donut Chart
+                    risk_breakdown_df = pd.DataFrame({"Risk Factor": ["Weather & Elements", "Terrain & Route", "Traffic & Crowds"], "Contribution": [w_pct, t_pct, c_pct]})
+                    fig_breakdown = px.pie(risk_breakdown_df, names="Risk Factor", values="Contribution", hole=0.6,
+                                           color="Risk Factor", color_discrete_map={"Weather & Elements": "#3498db", "Terrain & Route": "#e67e22", "Traffic & Crowds": "#9b59b6"})
+                    fig_breakdown.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
+                    st.plotly_chart(fig_breakdown, use_container_width=True)
 
-                        # 📍 1. Draw the Origin and Destination markers
-                        map_data = pd.DataFrame({
-                            "lat": [src_lat, dest_lat],
-                            "lon": [src_lon, dest_lon],
-                            "color": [[231, 76, 60, 200], [46, 204, 113, 200]],
-                            "name": ["Origin", "Destination"]
-                        })
+                    # Narrative & Summary
+                    generated_narrative = generate_semantic_narrative(normalized_features, tier)
+                    st.info(generated_narrative)
+                    st.divider()
+                    
+                    # Combined Budget/Risk Summary
+                    combined_text = generate_combined_summary(tier, float(telemetry.get('stress_score', 50)), 5000.0)
+                    st.markdown(combined_text)
+                    st.divider()
 
-                        scatter_layer = pdk.Layer(
-                            "ScatterplotLayer",
-                            data=map_data,
-                            get_position="[lon, lat]",
-                            get_fill_color="color",
-                            get_radius=8000,
-                            radius_min_pixels=8,
-                            radius_max_pixels=25,
-                            pickable=True
-                        )
+                    # Final Safety Score
+                    st.metric(label="Overall Safety Risk Score", value=f"{score:.2f} / 100")
+                    st.progress(float(score) / 100.0)
 
-                        # 🗺️ 2. THE WOW FACTOR: Draw the winding roads!
-                        if route_coordinates:
-                            # 🛡️ FIX 1: Pass the data as a pure Python dictionary list instead of a DataFrame
-                            route_layer = pdk.Layer(
-                                "PathLayer",
-                                data=[{"path": route_coordinates}], 
-                                get_path="path",
-                                get_color=[52, 152, 219, 255], 
-                                width_scale=20,
-                                width_min_pixels=5,
-                                get_width=5
-                            )
-                        else:
-                            # Failsafe Fallback
-                            route_layer = pdk.Layer(
-                                "LineLayer",
-                                data=[{"start": [src_lon, src_lat], "end": [dest_lon, dest_lat]}],
-                                get_source_position="start",
-                                get_target_position="end",
-                                get_color=[52, 152, 219, 180],
-                                get_width=5,
-                            )
+                    # 📜 LOGGING AND HISTORY (Preserved)
+                    if st.session_state.get("log_this_run", False):
+                        math_score = get_mathematical_ground_truth(telemetry)
+                        write_cloud_prediction_log([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), st.session_state.get("saved_final_query", "Unknown"), res_data.get("resolved_name", "N/A"), float(dest_lat or 0.0), float(dest_lon or 0.0), round(float(score or 0.0), 2), math_score, tier, res_data.get("destination_type", "General"), res_data.get("destination_description", "N/A"), res_data.get("model_version", "v1.0_ML"), travel_date.strftime("%Y-%m-%d"), json.dumps(telemetry)])
+                        st.session_state.prediction_history.append({"Time Checked": datetime.now().strftime("%I:%M:%S %p"), "📅 Planned Travel Date": travel_date.strftime("%Y-%m-%d"), "Destination Location": res_data.get("resolved_name"), "Risk Score Index": float(score), "Safety Status Category": tier})
+                        if len(st.session_state.prediction_history) > MAX_HISTORY: st.session_state.prediction_history.pop(0)
+                        st.session_state["log_this_run"] = False
 
-                        # 3. Render the 3D Canvas
-                        # Lowered the pitch from 45 to 30 so city names are easier to read
-                        view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=6.5, pitch=30) 
-                        
-                        r = pdk.Deck(
-                            layers=[route_layer, scatter_layer], 
-                            initial_view_state=view_state, 
-                            map_style="road", # 🌟 CHANGED: Bright, clean, street-level map!
-                            tooltip={"text": "{name}"}
-                        )
-                        st.pydeck_chart(r)
-
-                    except Exception as e:
-                        st.warning(f"⚠️ Map rendering error: {e}. Fallback loaded.")
-                        st.map(pd.DataFrame({"latitude": [dest_lat], "longitude": [dest_lon]}), width='stretch')
-                        
-                weather_weight = float(normalized_features['rain'] * 1.5 + normalized_features['wind_speed'] * 0.5)
-                terrain_weight = float(telemetry.get('elevation_penalty', 0) * 2.0 + telemetry.get('transport_complexity_score', 0) * 0.2)
-                crowd_weight = float(telemetry.get('crowd_baseline', 45) + telemetry.get('festival_boost', 0))
-                total_weight = weather_weight + terrain_weight + crowd_weight
-                if total_weight == 0: total_weight = 1.0
-
-                w_pct = round((weather_weight / total_weight) * 100, 1)
-                t_pct = round((terrain_weight / total_weight) * 100, 1)
-                c_pct = round((crowd_weight / total_weight) * 100, 1)
-
-                generated_narrative = generate_semantic_narrative(normalized_features, tier)
-
-                # 1. Put the percentages into a quick Pandas DataFrame
-                risk_breakdown_df = pd.DataFrame({
-                    "Risk Factor": ["Weather & Elements", "Terrain & Route", "Traffic & Crowds"],
-                    "Contribution": [w_pct, t_pct, c_pct]
-                })
-
-                # 2. Draw a sleek, modern Donut Chart
-                fig_breakdown = px.pie(
-                    risk_breakdown_df,
-                    names="Risk Factor",
-                    values="Contribution",
-                    hole=0.6, # This turns it from a pie chart into a donut!
-                    color="Risk Factor",
-                    color_discrete_map={
-                        "Weather & Elements": "#3498db",  # Blue
-                        "Terrain & Route": "#e67e22",     # Orange
-                        "Traffic & Crowds": "#9b59b6"     # Purple
-                    }
-                )
-                
-                # Clean up the layout so it looks professional in Streamlit
-                fig_breakdown.update_traces(textposition='inside', textinfo='percent+label')
-                fig_breakdown.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
-
-                # 3. Render it to the app
-                st.plotly_chart(fig_breakdown, use_container_width=True)
-                
-                # 4. Show your narrative right below it!
-                st.info(generated_narrative)
-
-                st.markdown("---")
-                
-                tier_clean = str(tier).lower()
-                if "minimal" in tier_clean or "low" in tier_clean:
-                    st.success(generated_narrative)  
-                elif "moderate" in tier_clean or "elevated" in tier_clean:
-                    st.warning(generated_narrative)  
-                else:
-                    st.error(generated_narrative)    
-                
-                st.write("")
-                st.metric(label="Overall Safety Risk Score (0 = Safest, 100 = Hazardous)", value=f"{score:.2f} / 100")
-                st.progress(float(score) / 100.0)
-                st.caption(f"🤖 Powered by AI Risk Models | Application Version: v{res_data.get('model_version')}")
-                
                 st.write("---")
-                st.markdown("#### 📡 Visualized Risk Distribution Share Graph")
-                live_shares = {
-                    "🌧️ Live Weather Conditions": w_pct,
-                    "⛰️ Local Mountain & Terrain Factors": t_pct,
-                    "🧑‍🤝‍🧑 Tourist Traffic & Crowd Baseline": c_pct
-                }
-                share_df = pd.DataFrame(list(live_shares.items()), columns=["Risk Driver Group", "Influence Share (%)"])
-                st.bar_chart(share_df.set_index("Risk Driver Group"), horizontal=True)
-
-                if st.session_state.get("log_this_run", False):
-                    
-                    current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    target_date_str = travel_date.strftime("%Y-%m-%d")
-                    current_time_str = datetime.now().strftime("%I:%M:%S %p")
-                    saved_query = st.session_state.get("saved_final_query", "Unknown")
-                    
-                    telemetry = st.session_state.get("latest_telemetry", {})
-                    
-                    # 1. CALCULATE THE REAL TRUTH using the function
-                    math_score = get_mathematical_ground_truth(telemetry)
-                    
-                    # 2. LOGGING PAYLOAD
-                    sheet_row_payload = [
-                        current_timestamp,
-                        saved_query, 
-                        res_data.get("resolved_name", "N/A"),
-                        float(dest_lat or 0.0),
-                        float(dest_lon or 0.0),
-                        round(float(score or 0.0), 2),
-                        math_score, 
-                        tier,
-                        res_data.get("destination_type", "General"),
-                        res_data.get("destination_description", "N/A"),
-                        res_data.get("model_version", "v1.0_ML"),
-                        target_date_str,
-                        json.dumps(telemetry)
-                    ]
-                    write_cloud_prediction_log(sheet_row_payload)
-
-                    # 3. Update session history
-                    history_log = {
-                        "Time Checked": current_time_str,
-                        "📅 Planned Travel Date": target_date_str,
-                        "Destination Location": "Manali (STRESS_TEST)" if is_test_mode else res_data.get("resolved_name"),
-                        "Risk Score Index": float(score),
-                        "Safety Status Category": tier
-                    }
-                    st.session_state.prediction_history.append(history_log)
-                    if len(st.session_state.prediction_history) > MAX_HISTORY:
-                        st.session_state.prediction_history.pop(0)
-                        
-                    st.session_state["log_this_run"] = False
-
-        st.write("---")
-        st.header("🕒 Recent Checks This Session")
-        if st.session_state.prediction_history:
-            hist_df = pd.DataFrame(st.session_state.prediction_history)
-            st.dataframe(hist_df.sort_index(ascending=False), width='stretch')
-        else:
-            st.info("ℹ️ No routes checked yet this session. Enter a destination above to see your recent search log history.")
+                st.header("🕒 Recent Checks This Session")
+                if st.session_state.prediction_history:
+                    st.dataframe(pd.DataFrame(st.session_state.prediction_history).sort_index(ascending=False), width='stretch')
+                else:
+                    st.info("ℹ️ No routes checked yet this session.")
 
     with tab_budget:
         shared_loc = st.session_state.get("shared_query", "Goa")
