@@ -13,7 +13,7 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 from dotenv import find_dotenv, load_dotenv
 
-from summary import generate_semantic_narrative  
+from summary import generate_semantic_narrative, generate_combined_summary
 from budget_ui import render_budget_tab          
 
 
@@ -172,6 +172,24 @@ def write_budget_cloud_log(row_data: list):
     except Exception as e:
         logging.error(f"🛑 Failed to append budget log to Google Sheets: {e}")
         return False
+    
+def translate_rainfall(mm_value):
+    """Converts raw rainfall mm into a human-readable status and estimated probability."""
+    try:
+        mm = float(mm_value)
+    except:
+        return "Unknown ☁️", "N/A"
+        
+    if mm <= 0.1:
+        return "Dry Conditions ☀️", "5% chance"
+    elif mm <= 2.5:
+        return "Light Drizzle 🌦️", "30% chance"
+    elif mm <= 7.5:
+        return "Moderate Rain 🌧️", "65% chance"
+    elif mm <= 35.0:
+        return "Heavy Rain ⛈️", "90% chance"
+    else:
+        return "Extreme Downpour 🌊", "99% chance"
 
 @st.cache_data
 def load_cached_destinations():
@@ -407,9 +425,24 @@ if app_view == "🔮 Route Risk Checker":
 
                     st.write("")
                     m_r2_c1, m_r2_col2 = st.columns(2)
+                    
                     with m_r2_c1:
-                        st.metric(label="🌧️ Predicted Rainfall", value=f"{normalized_features.get('rain', 0.0):.2f} mm")
+                        # 1. Grab the raw rain value from your features
+                        rain_val = normalized_features.get('rain', 0.0)
+                        
+                        # 2. Get the scientifically accurate translations
+                        rain_status, travel_risk = translate_rainfall(rain_val)
+                        
+                        # 3. Draw the upgraded widget with the sleek grey subtitle
+                        st.metric(
+                            label="🌧️ Predicted Rainfall", 
+                            value=f"{rain_val:.2f} mm",
+                            delta=f"{rain_status} • {travel_risk}",
+                            delta_color="off"
+                        )
+                        
                     with m_r2_col2:
+                        # Leaving the wind metric exactly as you had it!
                         st.metric(label="💨 Estimated Wind", value=f"{normalized_features.get('wind_speed', 0.0):.1f} km/h")
 
                 with col_advisory:
@@ -486,6 +519,36 @@ if app_view == "🔮 Route Risk Checker":
                 c_pct = round((crowd_weight / total_weight) * 100, 1)
 
                 generated_narrative = generate_semantic_narrative(normalized_features, tier)
+
+                # 1. Put the percentages into a quick Pandas DataFrame
+                risk_breakdown_df = pd.DataFrame({
+                    "Risk Factor": ["Weather & Elements", "Terrain & Route", "Traffic & Crowds"],
+                    "Contribution": [w_pct, t_pct, c_pct]
+                })
+
+                # 2. Draw a sleek, modern Donut Chart
+                fig_breakdown = px.pie(
+                    risk_breakdown_df,
+                    names="Risk Factor",
+                    values="Contribution",
+                    hole=0.6, # This turns it from a pie chart into a donut!
+                    color="Risk Factor",
+                    color_discrete_map={
+                        "Weather & Elements": "#3498db",  # Blue
+                        "Terrain & Route": "#e67e22",     # Orange
+                        "Traffic & Crowds": "#9b59b6"     # Purple
+                    }
+                )
+                
+                # Clean up the layout so it looks professional in Streamlit
+                fig_breakdown.update_traces(textposition='inside', textinfo='percent+label')
+                fig_breakdown.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
+
+                # 3. Render it to the app
+                st.plotly_chart(fig_breakdown, use_container_width=True)
+                
+                # 4. Show your narrative right below it!
+                st.info(generated_narrative)
 
                 st.markdown("---")
                 
