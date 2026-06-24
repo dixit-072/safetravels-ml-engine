@@ -668,6 +668,31 @@ elif app_view == "📊 Travel Data Analytics":
                 st.markdown("#### 🗄️ Search Logs Archive")
                 st.dataframe(db_df, width='stretch')
 
+
+                st.write("---")
+                st.markdown("#### 📂 AI Training Data Archive (Weather & Hazards)")
+                st.caption("This is the master historical dataset used to train the XGBoost Risk Engine.")
+                try:
+                    csv_path = "data/master_feature_table_with_hazards.csv"
+                    if os.path.exists(csv_path):
+                        training_df = pd.read_csv(csv_path)
+                        # Display the dataframe with a scrollable height so it doesn't take up the whole page
+                        st.dataframe(training_df, width='stretch', height=300)
+                        
+                        # Bonus: Give users a button to download the training data!
+                        training_csv = training_df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="📥 Download Master Training Data (CSV)",
+                            data=training_csv,
+                            file_name="xgboost_training_data.csv",
+                            mime="text/csv"
+                        )
+                    else:
+                        st.info("💡 Training data CSV file not found in the 'data/' folder.")
+                except Exception as e:
+                    st.error(f"⚠️ Could not load training data: {e}")
+
+
                 st.write("---")
                 st.markdown("#### ⚖️ AI Accuracy & Model Truth Comparison")
                 
