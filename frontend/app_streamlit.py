@@ -669,6 +669,7 @@ elif app_view == "📊 Travel Data Analytics":
                 st.dataframe(db_df, width='stretch')
 
 
+                # 🌟 AI TRAINING DATA ARCHIVE (WITH FILTER) 🌟
                 st.write("---")
                 st.markdown("#### 📂 AI Training Data Archive (Weather & Hazards)")
                 st.caption("This is the master historical dataset used to train the XGBoost Risk Engine.")
@@ -676,15 +677,32 @@ elif app_view == "📊 Travel Data Analytics":
                     csv_path = "data/master_feature_table_with_hazards.csv"
                     if os.path.exists(csv_path):
                         training_df = pd.read_csv(csv_path)
-                        # Display the dataframe with a scrollable height so it doesn't take up the whole page
-                        st.dataframe(training_df, width='stretch', height=300)
                         
-                        # Bonus: Give users a button to download the training data!
-                        training_csv = training_df.to_csv(index=False).encode('utf-8')
+                        # 1. Find the location column (usually named 'location' or 'city')
+                        loc_col_train = next((c for c in ['location', 'Location', 'city', 'City'] if c in training_df.columns), None)
+                        
+                        # 2. Add the Filter Dropdown
+                        if loc_col_train:
+                            train_city_list = ["All Destinations"] + sorted(training_df[loc_col_train].astype(str).unique().tolist())
+                            selected_train_city = st.selectbox("🎯 Filter Training Data by Destination:", options=train_city_list, key="train_city_filter")
+                            
+                            # Filter the dataframe based on the dropdown
+                            if selected_train_city != "All Destinations":
+                                display_df = training_df[training_df[loc_col_train] == selected_train_city]
+                            else:
+                                display_df = training_df
+                        else:
+                            display_df = training_df  # Fallback if no location column exists
+                        
+                        # 3. Display the filtered dataframe
+                        st.dataframe(display_df, width='stretch', height=300)
+                        
+                        # 4. Download button (downloads the filtered data!)
+                        training_csv = display_df.to_csv(index=False).encode('utf-8')
                         st.download_button(
-                            label="📥 Download Master Training Data (CSV)",
+                            label="📥 Download Displayed Data (CSV)",
                             data=training_csv,
-                            file_name="xgboost_training_data.csv",
+                            file_name=f"training_data_{selected_train_city if loc_col_train and selected_train_city != 'All Destinations' else 'full'}.csv",
                             mime="text/csv"
                         )
                     else:
