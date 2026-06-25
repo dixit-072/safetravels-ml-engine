@@ -175,16 +175,23 @@ def translate_rainfall(mm_value):
     except (ValueError, TypeError):
         return "Unknown ☁️", "N/A"
         
-    if mm <= 0.1:
-        return "Dry ☀️", "5%"
-    elif mm <= 2.5:
-        return "Drizzle 🌦️", "30%"
-    elif mm <= 7.6:
-        return "Moderate 🌧️", "65%"
-    elif mm <= 50.0:
-        return "Heavy ⛈️", "90%"
+    # Standard IMD (India Meteorological Department) classifications
+    if mm < 0.1:
+        return "Dry ☀️", "Trace"
+    elif mm < 2.5:
+        return "Drizzle 🌦️", "Very Light"
+    elif mm < 7.6:
+        return "Light 🌧️", "Light Rain"
+    elif mm < 35.6:
+        return "Moderate 🌧️", "Moderate"
+    elif mm < 64.5:
+        return "Heavy ⛈️", "Rather Heavy"
+    elif mm < 115.6:
+        return "Intense ⛈️", "Heavy Rain"
+    elif mm < 204.4:
+        return "Extreme 🌊", "Very Heavy"
     else:
-        return "Extreme 🌊", "99%"
+        return "Hazard 🚨", "Cloudburst"
 
 @st.cache_data
 def load_cached_destinations():
@@ -511,6 +518,12 @@ if app_view == "🔮 Route Risk Checker":
                 generated_narrative = generate_semantic_narrative(normalized_features, tier)
 
                 st.markdown("---")
+                st.write("")
+
+                st.metric(label="Overall Safety Risk Score (0 = Safest, 100 = Hazardous)", value=f"{score:.2f} / 100")
+                st.progress(float(score) / 100.0)
+                st.caption(f"🤖 Powered by AI Risk Models | Application Version: v{res_data.get('model_version')}")
+                st.write("")
                 
                 tier_clean = str(tier).lower()
                 if "minimal" in tier_clean or "low" in tier_clean:
@@ -520,10 +533,7 @@ if app_view == "🔮 Route Risk Checker":
                 else:
                     st.error(generated_narrative)    
                 
-                st.write("")
-                st.metric(label="Overall Safety Risk Score (0 = Safest, 100 = Hazardous)", value=f"{score:.2f} / 100")
-                st.progress(float(score) / 100.0)
-                st.caption(f"🤖 Powered by AI Risk Models | Application Version: v{res_data.get('model_version')}")
+                
                 
                 st.write("---")
                 st.markdown("#### 📡 Visualized Risk Distribution Share Graph")
