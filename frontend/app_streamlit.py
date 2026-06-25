@@ -521,35 +521,80 @@ if app_view == "🔮 Route Risk Checker":
                 st.markdown("---")
                 st.write("")
 
-                # 🌟 NEW: Dynamic Interactive Speedometer Gauge
+                # 🌟 NEW: Dynamic Interactive Speedometer Gauge (Inline)
+                score_val = float(score)
+
+                # Badge label + color logic
+                if score_val < 30:
+                    badge_label, badge_color = "Safe", "#1a6b30"
+                    badge_bg = "#d4edda"
+                elif score_val < 70:
+                    badge_label, badge_color = "Moderate Risk", "#7a5800"
+                    badge_bg = "#fff3cd"
+                else:
+                    badge_label, badge_color = "Hazardous", "#842029"
+                    badge_bg = "#f8d7da"
+
+                # Build the Plotly Gauge
                 fig = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = float(score),
-                    title = {'text': "Overall Safety Risk Score", 'font': {'size': 20}},
-                    number = {'suffix': " / 100", 'font': {'size': 40}},
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    gauge = {
-                        'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkgray"},
-                        'bar': {'color': "rgba(0,0,0,0.7)", 'thickness': 0.25}, # The pointer
-                        'bgcolor': "white",
-                        'borderwidth': 2,
-                        'bordercolor': "gray",
-                        'steps': [
-                            {'range': [0, 30], 'color': "#d4edda"},   # 🟢 GREEN: Safe (0-30)
-                            {'range': [30, 70], 'color': "#fff3cd"},  # 🟡 YELLOW: Moderate (30-70)
-                            {'range': [70, 100], 'color': "#f8d7da"}  # 🔴 RED: Hazardous (70-100)
-                        ]
-                    }
+                    mode="gauge+number",
+                    value=score_val,
+                    number={
+                        "suffix": " / 100",
+                        "font": {"size": 44, "color": "#1a1a1a"},
+                    },
+                    domain={"x": [0, 1], "y": [0, 1]},
+                    gauge={
+                        "axis": {
+                            "range": [0, 100],
+                            "tickwidth": 1,
+                            "tickcolor": "#aaaaaa",
+                            "tickfont": {"size": 11, "color": "#888"},
+                        },
+                        "bar": {"color": "rgba(0,0,0,0.75)", "thickness": 0.18},
+                        "bgcolor": "white",
+                        "borderwidth": 0,
+                        "steps": [
+                            {"range": [0, 30],  "color": "#d4edda"},
+                            {"range": [30, 70], "color": "#fff3cd"},
+                            {"range": [70, 100],"color": "#f8d7da"},
+                        ],
+                        "threshold": {
+                            "line": {"color": "rgba(0,0,0,0.3)", "width": 2},
+                            "thickness": 0.75,
+                            "value": score_val,
+                        },
+                    },
                 ))
 
-                # Shrink the margins so it fits perfectly in your UI column
-                fig.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+                fig.update_layout(
+                    height=240,
+                    margin=dict(l=24, r=24, t=16, b=8),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    font={"family": "Inter, sans-serif"},
+                )
 
-                # Render it to Streamlit
                 st.plotly_chart(fig, use_container_width=True)
-                
-                # Your original caption perfectly preserved below the gauge:
-                st.caption(f"🤖 Powered by AI Risk Models | Application Version: v{res_data.get('model_version')}")
+
+                # Centered badge + label
+                col1, col2, col3 = st.columns([1, 2, 1])
+                with col2:
+                    st.markdown(
+                        f"""
+                        <div style="text-align:center; margin-top:-8px;">
+                            <span style="
+                                background:{badge_bg}; color:{badge_color};
+                                padding:3px 14px; border-radius:20px;
+                                font-size:13px; font-weight:600;
+                            ">{badge_label}</span>
+                            <p style="font-size:11px; color:#999; margin-top:10px;">
+                                🤖 Powered by AI Risk Models &nbsp;·&nbsp; v{res_data.get('model_version')}
+                            </p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
                 st.write("")
                 
                 tier_clean = str(tier).lower()
