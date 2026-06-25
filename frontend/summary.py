@@ -149,16 +149,28 @@ def generate_semantic_narrative(features: dict, risk_tier: str) -> str:
 
         # Risk Factor Breakdown
         drivers = []
-        if safe_features["rain"] > 0: 
-            # Calculate the percentage chance so it matches the UI
-            rain_mm = safe_features['rain']
-            if rain_mm <= 0.1: prob = "5%"
-            elif rain_mm <= 2.5: prob = "30%"
-            elif rain_mm <= 7.6: prob = "65%"
-            elif rain_mm <= 50.0: prob = "90%"
-            else: prob = "99%"
+        if safe_features["rain"] > 0:
+            rain_mm = safe_features["rain"]
             
-            drivers.append(f"   * 🌧️ Rain Level: {rain_mm:.1f} mm ({prob} chance)")
+            # Standard IMD (India Meteorological Department) classifications
+            if rain_mm < 0.1:
+                intensity = "Trace"
+            elif rain_mm < 2.5:
+                intensity = "Very Light Rain"
+            elif rain_mm < 7.6:
+                intensity = "Light Rain"
+            elif rain_mm < 35.6:
+                intensity = "Moderate Rain"
+            elif rain_mm < 64.5:
+                intensity = "Rather Heavy Rain"
+            elif rain_mm < 115.6:
+                intensity = "Heavy Rain"
+            elif rain_mm < 204.4:
+                intensity = "Very Heavy Rain"
+            else:
+                intensity = "Extremely Heavy / Cloudburst"
+
+            drivers.append(f"   * 🌧️ Rain Level: {rain_mm:.1f} mm ({intensity})")
             
         if is_mountain: drivers.append(f"   * ⛰️ Altitude: {safe_features['elevation']:.0f} m")
         if safe_features["wind_speed"] > 0: drivers.append(f"   * 💨 Wind Speed: {safe_features['wind_speed']:.1f} km/h")
