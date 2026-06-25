@@ -521,21 +521,27 @@ if app_view == "🔮 Route Risk Checker":
                 st.markdown("---")
                 st.write("")
 
-                # 🌟 NEW: Dynamic Interactive Speedometer Gauge (Inline)
+                # 🌟 NEW: Dynamic Interactive Speedometer Gauge (5 TIERS)
                 score_val = float(score)
 
-                # Badge label + color logic
-                if score_val < 30:
-                    badge_label, badge_color = "Safe", "#1a6b30"
-                    badge_bg = "#d4edda"
-                elif score_val < 70:
-                    badge_label, badge_color = "Moderate Risk", "#7a5800"
-                    badge_bg = "#fff3cd"
+                # Badge label + color logic (5 Categories)
+                if score_val <= 20:
+                    badge_label, badge_color = "Minimal Risk", "#0f5132"
+                    badge_bg = "#d1e7dd"
+                elif score_val <= 40:
+                    badge_label, badge_color = "Low Risk", "#3f6212"
+                    badge_bg = "#d9f99d"
+                elif score_val <= 60:
+                    badge_label, badge_color = "Moderate Risk", "#854d0e"
+                    badge_bg = "#fef08a"
+                elif score_val <= 80:
+                    badge_label, badge_color = "Elevated Risk", "#9a3412"
+                    badge_bg = "#ffedd5"
                 else:
                     badge_label, badge_color = "Hazardous", "#842029"
                     badge_bg = "#f8d7da"
 
-                # Build the Plotly Gauge
+                # Build the Plotly Gauge with 5 Steps
                 fig = go.Figure(go.Indicator(
                     mode="gauge+number",
                     value=score_val,
@@ -555,9 +561,11 @@ if app_view == "🔮 Route Risk Checker":
                         "bgcolor": "white",
                         "borderwidth": 0,
                         "steps": [
-                            {"range": [0, 30],  "color": "#d4edda"},
-                            {"range": [30, 70], "color": "#fff3cd"},
-                            {"range": [70, 100],"color": "#f8d7da"},
+                            {"range": [0, 20],  "color": "#d1e7dd"},  # 🟢 Minimal
+                            {"range": [20, 40], "color": "#d9f99d"},  # 🟡 Low
+                            {"range": [40, 60], "color": "#fef08a"},  # 🟠 Moderate
+                            {"range": [60, 80], "color": "#ffedd5"},  # 🔴 Elevated
+                            {"range": [80, 100],"color": "#f8d7da"},  # 🚨 Hazardous
                         ],
                         "threshold": {
                             "line": {"color": "rgba(0,0,0,0.3)", "width": 2},
@@ -589,7 +597,7 @@ if app_view == "🔮 Route Risk Checker":
                                 font-size:13px; font-weight:600;
                             ">{badge_label}</span>
                             <p style="font-size:11px; color:#999; margin-top:10px;">
-                                🤖 Powered by AI Risk Models &nbsp;·&nbsp; v{res_data.get('model_version')}
+                                🤖 Powered by AI Risk Models &nbsp;·&nbsp; v{res_data.get('model_version', '3.0')}
                             </p>
                         </div>
                         """,
