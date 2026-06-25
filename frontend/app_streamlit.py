@@ -8,6 +8,7 @@ import gspread
 import pydeck as pdk
 import json
 import base64
+import plotly.graph_objects as go
 from streamlit_gsheets import GSheetsConnection
 from google.oauth2.service_account import Credentials
 from datetime import datetime
@@ -177,15 +178,15 @@ def translate_rainfall(mm_value):
         
     # Standard IMD (India Meteorological Department) classifications
     if mm < 0.1:
-        return "Dry ☀️", "Trace"
+        return "Clear ☀️", "Trace"
     elif mm < 2.5:
         return "Drizzle 🌦️", "Very Light"
     elif mm < 7.6:
-        return "Light 🌧️", "Light Rain"
+        return "Showers 🌧️", "Light Rain"      # 🔹 Fixed Light/Light repetition
     elif mm < 35.6:
-        return "Moderate 🌧️", "Moderate"
+        return "Steady 🌧️", "Moderate"        # 🔹 Fixed Moderate/Moderate repetition
     elif mm < 64.5:
-        return "Heavy ⛈️", "Rather Heavy"
+        return "Downpour ⛈️", "Rather Heavy"
     elif mm < 115.6:
         return "Intense ⛈️", "Heavy Rain"
     elif mm < 204.4:
@@ -520,8 +521,34 @@ if app_view == "🔮 Route Risk Checker":
                 st.markdown("---")
                 st.write("")
 
-                st.metric(label="Overall Safety Risk Score (0 = Safest, 100 = Hazardous)", value=f"{score:.2f} / 100")
-                st.progress(float(score) / 100.0)
+                # 🌟 NEW: Dynamic Interactive Speedometer Gauge
+                fig = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = float(score),
+                    title = {'text': "Overall Safety Risk Score", 'font': {'size': 20}},
+                    number = {'suffix': " / 100", 'font': {'size': 40}},
+                    domain = {'x': [0, 1], 'y': [0, 1]},
+                    gauge = {
+                        'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkgray"},
+                        'bar': {'color': "rgba(0,0,0,0.7)", 'thickness': 0.25}, # The pointer
+                        'bgcolor': "white",
+                        'borderwidth': 2,
+                        'bordercolor': "gray",
+                        'steps': [
+                            {'range': [0, 30], 'color': "#d4edda"},   # 🟢 GREEN: Safe (0-30)
+                            {'range': [30, 70], 'color': "#fff3cd"},  # 🟡 YELLOW: Moderate (30-70)
+                            {'range': [70, 100], 'color': "#f8d7da"}  # 🔴 RED: Hazardous (70-100)
+                        ]
+                    }
+                ))
+
+                # Shrink the margins so it fits perfectly in your UI column
+                fig.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+
+                # Render it to Streamlit
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Your original caption perfectly preserved below the gauge:
                 st.caption(f"🤖 Powered by AI Risk Models | Application Version: v{res_data.get('model_version')}")
                 st.write("")
                 
