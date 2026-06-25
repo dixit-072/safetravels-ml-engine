@@ -172,6 +172,8 @@ def gather_and_engineer_features(source_query: str, location_query: str, target_
     forecast_idx = max(0, min(15, days_ahead))
 
     rain, snowfall, wind_speed, temp_max, temp_min, precipitation = 0.0, 0.0, 12.0, 24.0, 15.0, 0.0
+    forecast_7_days = [] # 🌟 NEW: Array to hold 7 days of data for our UI!
+
     weather_api_url = os.getenv("WEATHER_FORECAST_URL", "https://api.open-meteo.com/v1/forecast")
     try:
         weather_url = f"{weather_api_url}?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,rain_sum,snowfall_sum,wind_speed_10m_max&timezone=auto&forecast_days=16"
@@ -179,6 +181,8 @@ def gather_and_engineer_features(source_query: str, location_query: str, target_
         
         if w_res.status_code == 200:
             daily = w_res.json().get("daily", {})
+            
+            dates_list = daily.get("time", []) # 🌟 NEW: Get the actual dates
             rain_list = daily.get("rain_sum", [0.0])
             snow_list = daily.get("snowfall_sum", [0.0])
             wind_list = daily.get("wind_speed_10m_max", [12.0])
@@ -188,12 +192,24 @@ def gather_and_engineer_features(source_query: str, location_query: str, target_
             
             idx = forecast_idx if forecast_idx < len(rain_list) else 0
             
+            # Target day exact values (Used by the AI Risk Engine)
             rain = float(rain_list[idx])
             snowfall = float(snow_list[idx])
             wind_speed = float(wind_list[idx])
             temp_max = float(temp_max_list[idx])
             temp_min = float(temp_min_list[idx]) 
             precipitation = float(precip_list[idx])
+
+            # 🌟 NEW: Slice out the next 7 days from the target date for the frontend UI
+            end_idx = min(idx + 7, len(dates_list))
+            for i in range(idx, end_idx):
+                forecast_7_days.append({
+                    "date": dates_list[i],
+                    "temp_max": float(temp_max_list[i]),
+                    "temp_min": float(temp_min_list[i]),
+                    "rain": float(rain_list[i]),
+                    "wind": float(wind_list[i])
+                })
     except Exception as e:
         logging.warning(f"Live forecast drop: {e}.")
 
@@ -252,12 +268,13 @@ def gather_and_engineer_features(source_query: str, location_query: str, target_
         'budget_stress_index': float(budget_stress), 
         'elevation_penalty': float(el_penalty),
         
-        # 🆕 ROUTING METRICS FOR THE FRONTEND
+        # 🆕 ROUTING & WEATHER METRICS FOR THE FRONTEND
         'route_distance_km': distance_km,
         'route_duration_hrs': duration_hrs,
         'source_resolved_name': src_name,
         'source_lat': src_lat,
-        'source_lon': src_lon 
+        'source_lon': src_lon,
+        'weekly_forecast': forecast_7_days 
     }
     
     return resolved_name, lat, lon, elevation, is_mountain, is_coastal, payload
